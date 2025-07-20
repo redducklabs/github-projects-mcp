@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-projects-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP Server for GitHub Projects management"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Gnu General Public License v3.0"}
 authors = [
-    {name = "Red Duck Labs, LLC", email = "contact@redducklabs.com"}
+    {name = "Red Duck Labs, LLC", email = "contact@redducklabs.com", role = "Maintainer", organization = "Red Duck Labs, LLC", url = "https://redducklabs.com"}
 ]
 keywords = ["mcp", "github", "projects", "graphql"]
 classifiers = [

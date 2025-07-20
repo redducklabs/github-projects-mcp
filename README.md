@@ -101,16 +101,20 @@ github-projects-mcp
 
 The server exposes the following MCP tools:
 
-#### Project Management
-- `get_organization_projects(org_login, first=20)` - Get projects for an organization
-- `get_user_projects(user_login, first=20)` - Get projects for a user  
+#### Project Discovery
+- `list_accessible_projects(first=20, after=None)` - List all projects accessible to authenticated user
+- `get_organization_projects(org_login, first=20, after=None)` - Get projects for an organization
+- `get_user_projects(user_login, first=20, after=None)` - Get projects for a user  
 - `get_project(project_id)` - Get a specific project by ID
+
+#### Project Management
 - `create_project(owner_id, title, description=None)` - Create a new project
 - `update_project(project_id, title=None, description=None, readme=None, public=None)` - Update project
 - `delete_project(project_id)` - Delete a project
 
 #### Project Items Management
-- `get_project_items(project_id, first=50)` - Get items in a project
+- `get_project_items(project_id, first=50, after=None)` - Get items in a project (full data)
+- `get_project_items_advanced(project_id, first=50, after=None, custom_fields=None, custom_filters=None, custom_variables=None)` - Get items with custom GraphQL field selection for efficiency
 - `add_item_to_project(project_id, content_id)` - Add an item to project
 - `update_item_field_value(project_id, item_id, field_id, value)` - Update item field
 - `remove_item_from_project(project_id, item_id)` - Remove item from project
@@ -118,6 +122,14 @@ The server exposes the following MCP tools:
 
 #### Project Fields
 - `get_project_fields(project_id)` - Get fields in a project
+
+#### Search & Filtering
+- `search_project_items(project_id, query, filters=None)` - Search items by content/fields
+- `get_items_by_field_value(project_id, field_id, value)` - Filter by specific field values
+- `get_items_by_milestone(project_id, milestone_name)` - Get items in specific milestone
+
+#### Advanced Queries
+- `execute_custom_project_query(query, variables=None)` - Execute custom GraphQL queries for maximum flexibility
 
 ## Using with Claude Code
 
