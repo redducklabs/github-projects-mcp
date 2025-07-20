@@ -136,7 +136,7 @@ jobs:
         fi
     
     - name: Run canary test (live integration)
-      if: ${{ secrets.TEST_GITHUB_TOKEN != '' }}
+      if: ${{ secrets.TEST_GITHUB_TOKEN }}
       env:
         # Test configuration from repository variables/secrets
         TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
