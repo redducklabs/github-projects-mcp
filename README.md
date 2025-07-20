@@ -48,8 +48,8 @@ The server is configured entirely through environment variables:
 
 ### Optional Configuration
 
-- `GITHUB_API_MAX_RETRIES`: Maximum retries for rate-limited requests (default: `3`)
-- `GITHUB_API_RETRY_DELAY`: Delay in seconds between retries (default: `60`)
+- `API_MAX_RETRIES`: Maximum retries for rate-limited requests (default: `3`)
+- `API_RETRY_DELAY`: Delay in seconds between retries (default: `60`)
 - `MCP_TRANSPORT`: Transport mode - `stdio`, `sse`, or `http` (default: `stdio`)
 - `MCP_HOST`: Host for SSE/HTTP modes (default: `localhost`)
 - `MCP_PORT`: Port for SSE/HTTP modes (default: `8000`)
@@ -245,8 +245,8 @@ claude mcp add github-projects github-projects-mcp -e GITHUB_TOKEN=your_token_he
       "args": [],
       "env": {
         "GITHUB_TOKEN": "your_github_token_here",
-        "GITHUB_API_MAX_RETRIES": "3",
-        "GITHUB_API_RETRY_DELAY": "60",
+        "API_MAX_RETRIES": "3",
+        "API_RETRY_DELAY": "60",
         "LOG_LEVEL": "INFO"
       }
     }
@@ -448,7 +448,7 @@ GNU General Public License v3.0 - see LICENSE file for details.
 
 **Rate limit errors**
 - The server automatically retries rate-limited requests
-- Increase `GITHUB_API_RETRY_DELAY` for longer waits between retries
+- Increase `API_RETRY_DELAY` for longer waits between retries
 - Reduce request frequency or use a token with higher rate limits
 
 **Transport mode errors**

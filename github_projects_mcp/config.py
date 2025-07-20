@@ -15,8 +15,8 @@ class Config:
         """Lazy initialization of config values"""
         if not self._initialized:
             # Set transport and other non-critical config first
-            self._max_retries: int = int(os.getenv("GITHUB_API_MAX_RETRIES", "3"))
-            self._retry_delay: int = int(os.getenv("GITHUB_API_RETRY_DELAY", "60"))
+            self._max_retries: int = int(os.getenv("API_MAX_RETRIES", "3"))
+            self._retry_delay: int = int(os.getenv("API_RETRY_DELAY", "60"))
             self._transport: str = os.getenv("MCP_TRANSPORT", "stdio").lower()
             self._host: str = os.getenv("MCP_HOST", "localhost")
             self._port: int = int(os.getenv("MCP_PORT", "8000"))

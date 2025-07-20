@@ -1,0 +1,140 @@
+name: Test Suite
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+        pip install python-dotenv requests
+    
+    - name: Install package in development mode
+      run: |
+        pip install -e .
+    
+    - name: Verify installation
+      run: |
+        python -c "import github_projects_mcp; print('Package imported successfully')"
+        python -c "from github_projects_mcp.server import mcp; print('MCP server imported successfully')"
+    
+    - name: Run linting checks
+      run: |
+        echo "Running code quality checks..."
+        flake8 github_projects_mcp/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 github_projects_mcp/ --count --max-complexity=10 --max-line-length=120 --statistics
+    
+    - name: Run type checking
+      run: |
+        echo "Running type checks..."
+        mypy github_projects_mcp/ --ignore-missing-imports
+    
+    - name: Run unit tests
+      env:
+        # Test configuration from repository variables/secrets
+        TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID }}
+        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER }}
+        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME }}
+        MCP_TEST_HOST: ${{ vars.MCP_TEST_HOST }}
+        MCP_TEST_PORT_SSE: ${{ vars.MCP_TEST_PORT_SSE }}
+        MCP_TEST_PORT_HTTP: ${{ vars.MCP_TEST_PORT_HTTP }}
+        API_MAX_RETRIES: ${{ vars.API_MAX_RETRIES }}
+        API_RETRY_DELAY: ${{ vars.API_RETRY_DELAY }}
+        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+        TEST_ITEM_PREFIX: ${{ vars.TEST_ITEM_PREFIX }}
+        # GitHub API configuration for the library
+        GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+      run: |
+        echo "Running test suite..."
+        pytest tests/ -v --tb=short --durations=10
+    
+    - name: Run canary test (live integration)
+      env:
+        # Test configuration from repository variables/secrets
+        TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID }}
+        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER }}
+        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME }}
+        GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        LOG_LEVEL: ERROR
+      run: |
+        echo "Running canary test (live integration)..."
+        pytest tests/test_canary.py -v -s
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          .coverage
+          pytest.xml
+        retention-days: 7
+
+  test-summary:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Test Summary
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Python Version | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------------|--------|" >> $GITHUB_STEP_SUMMARY
+        
+        # Check test results for each Python version
+        if [ "${{ needs.test.result }}" == "success" ]; then
+          echo "| 3.10, 3.11, 3.12 | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 All tests passed successfully!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Some versions | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Some tests failed. Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Unit tests" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Integration tests" >> $GITHUB_STEP_SUMMARY  
+        echo "- ✅ Live API tests (canary)" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Code quality checks" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Type checking" >> $GITHUB_STEP_SUMMARY

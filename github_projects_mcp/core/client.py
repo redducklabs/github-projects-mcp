@@ -62,7 +62,7 @@ class GitHubProjectsClient:
                         raise GitHubAPIError(error_msg, status_code)
                     raise GitHubAPIError(error_msg)
     
-    def get_organization_projects(self, org_login: str, first: int = 20, after: str = None) -> Dict[str, Any]:
+    def get_organization_projects(self, org_login: str, first: int = 20, after: Optional[str] = None) -> Dict[str, Any]:
         """Get projects for an organization with pagination support"""
         # Enforce GitHub API pagination limit
         if first > 100:
@@ -108,7 +108,7 @@ class GitHubProjectsClient:
         result = self._execute_with_retry(query, variables)
         return result["organization"]["projectsV2"]
     
-    def get_user_projects(self, user_login: str, first: int = 20, after: str = None) -> Dict[str, Any]:
+    def get_user_projects(self, user_login: str, first: int = 20, after: Optional[str] = None) -> Dict[str, Any]:
         """Get projects for a user with pagination support"""
         # Enforce GitHub API pagination limit
         if first > 100:
@@ -186,7 +186,7 @@ class GitHubProjectsClient:
         result = self._execute_with_retry(query, variables)
         return result["node"]
     
-    def get_project_items(self, project_id: str, first: int = 50, after: str = None) -> Dict[str, Any]:
+    def get_project_items(self, project_id: str, first: int = 50, after: Optional[str] = None) -> Dict[str, Any]:
         """Get items in a project with pagination support"""
         # Enforce GitHub API pagination limit
         if first > 100:
@@ -319,10 +319,10 @@ class GitHubProjectsClient:
         self, 
         project_id: str, 
         first: int = 50, 
-        after: str = None,
-        custom_fields: str = None,
-        custom_filters: str = None,
-        custom_variables: Dict[str, Any] = None
+        after: Optional[str] = None,
+        custom_fields: Optional[str] = None,
+        custom_filters: Optional[str] = None,
+        custom_variables: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Get project items with custom GraphQL modifiers"""
         # Enforce GitHub API pagination limit

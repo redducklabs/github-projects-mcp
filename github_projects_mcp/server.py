@@ -481,6 +481,7 @@ def update_project(project_id: str, title: Optional[str] = None, description: Op
         Updated project data
     """
     try:
+        client = get_github_client()
         return client.update_project(project_id, title, description, readme, public)
     except (GitHubAPIError, RateLimitError) as e:
         raise Exception(f"GitHub API error: {e}")
