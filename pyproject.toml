@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Gnu General Public License v3.0"}
 authors = [
-    {name = "Red Duck Labs, LLC", email = "contact@redducklabs.com", role = "Maintainer", organization = "Red Duck Labs, LLC", url = "https://redducklabs.com"}
+    {name = "Red Duck Labs, LLC", email = "contact@redducklabs.com"}
 ]
 keywords = ["mcp", "github", "projects", "graphql"]
 classifiers = [
