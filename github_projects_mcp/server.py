@@ -48,14 +48,14 @@ def get_github_client() -> GitHubProjectsClient:
 def list_accessible_projects(first: int = 20, after: Optional[str] = None) -> Dict[str, Any]:
     """List all projects accessible to the authenticated user with pagination support
 
-    PAGINATION LIMITS: GitHub API allows max 100 items per request. For large datasets,
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. For large datasets,
     use pagination with 'after' cursor from pageInfo.endCursor. Default 20 items is efficient
     for most use cases.
 
     CRITICAL: Check hasNextPage and paginate if needed for complete results.
 
     Args:
-        first: Number of projects to retrieve (default: 20, max: 100)
+        first: Number of projects to retrieve (default: 20, max: 25)
         after: Cursor for pagination (optional)
 
     Returns:
@@ -95,9 +95,9 @@ def list_accessible_projects(first: int = 20, after: Optional[str] = None) -> Di
           }
         }
         """
-        # Enforce GitHub API pagination limit
-        if first > 100:
-            first = 100
+        # Enforce reasonable pagination limit
+        if first > 25:
+            first = 25
         variables = {"first": first}
         if after:
             variables["after"] = after
@@ -114,12 +114,12 @@ def list_accessible_projects(first: int = 20, after: Optional[str] = None) -> Di
 def get_organization_projects(org_login: str, first: int = 20, after: Optional[str] = None) -> Dict[str, Any]:
     """Get projects for an organization with pagination support
 
-    PAGINATION LIMITS: GitHub API allows max 100 items per request. Use pagination
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. Use pagination
     for large organizations with many projects.
 
     Args:
         org_login: Organization login name
-        first: Number of projects to retrieve (default: 20, max: 100)
+        first: Number of projects to retrieve (default: 20, max: 25)
         after: Cursor for pagination (optional)
 
     Returns:
@@ -136,12 +136,12 @@ def get_organization_projects(org_login: str, first: int = 20, after: Optional[s
 def get_user_projects(user_login: str, first: int = 20, after: Optional[str] = None) -> Dict[str, Any]:
     """Get projects for a user with pagination support
 
-    PAGINATION LIMITS: GitHub API allows max 100 items per request. Most users have
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. Most users have
     few projects, so default 20 is usually sufficient.
 
     Args:
         user_login: User login name
-        first: Number of projects to retrieve (default: 20, max: 100)
+        first: Number of projects to retrieve (default: 20, max: 25)
         after: Cursor for pagination (optional)
 
     Returns:
@@ -176,10 +176,10 @@ def get_project_items(project_id: str, first: int = 50, after: Optional[str] = N
     """Get items in a project with pagination support
 
     EFFICIENCY WARNING: This returns FULL item data which can be 25KB+ for just 20 items.
-    For large projects (100+ items), consider using get_project_items_advanced() with
+    For large projects (25+ items), consider using get_project_items_advanced() with
     custom_fields to select only needed data (e.g., 'id content { title }').
 
-    PAGINATION LIMITS: GitHub API allows max 100 items per request. Projects can have
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. Projects can have
     1000+ items, requiring multiple paginated requests.
 
     CRITICAL: When counting items, you MUST paginate through ALL pages if hasNextPage=true.
@@ -187,7 +187,7 @@ def get_project_items(project_id: str, first: int = 50, after: Optional[str] = N
 
     Args:
         project_id: GitHub Project ID
-        first: Number of items to retrieve (default: 50, max: 100)
+        first: Number of items to retrieve (default: 50, max: 25)
         after: Cursor for pagination (optional)
 
     Returns:
@@ -195,9 +195,9 @@ def get_project_items(project_id: str, first: int = 50, after: Optional[str] = N
     """
     try:
         client = get_github_client()
-        # Enforce GitHub API pagination limit
-        if first > 100:
-            first = 100
+        # Enforce reasonable pagination limit
+        if first > 25:
+            first = 25
         return client.get_project_items(project_id, first, after)
     except (GitHubAPIError, RateLimitError) as e:
         raise Exception(f"GitHub API error: {e}")
@@ -215,10 +215,10 @@ def get_project_items_advanced(
     """Get project items with custom GraphQL modifiers for advanced use cases
 
     EFFICIENCY: Use custom_fields to dramatically reduce response size. Full item data
-    can be 25KB+ for 20 items, but selective fields can reduce this to <1KB for 100+ items.
+    can be 25KB+ for 20 items, but selective fields can reduce this to <1KB for 25+ items.
 
-    PAGINATION LIMITS: GitHub API allows max 100 items per request. For counting/analysis
-    use cases, increase 'first' to 100 and use selective field queries.
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. For counting/analysis
+    use cases, use 'first: 25' and selective field queries with pagination.
 
     MILESTONE FIELDS: Use 'fieldValues(first:10)' to get milestone data. Only items with
     milestone fields will have the ProjectV2ItemFieldMilestoneValue data.
@@ -228,7 +228,7 @@ def get_project_items_advanced(
 
     Args:
         project_id: GitHub Project ID
-        first: Number of items to retrieve (default: 50, max: 100)
+        first: Number of items to retrieve (default: 50, max: 25)
         after: Cursor for pagination (optional)
         custom_fields: Custom GraphQL field selection for efficiency (recommended)
         custom_filters: Custom GraphQL filters (limited GitHub API support)
@@ -238,7 +238,7 @@ def get_project_items_advanced(
         Dictionary with 'nodes' (list of items) and 'pageInfo' (pagination info)
 
     EFFICIENCY EXAMPLES:
-        # Get only milestone data for counting (reduces 100 items from 25KB+ to ~1KB):
+        # Get only milestone data for counting (reduces 25 items from ~6KB+ to ~300B):
         custom_fields = (
             "fieldValues(first:10) { nodes { ... on ProjectV2ItemFieldMilestoneValue { milestone { title } } } } "
             "content { ... on Issue { number } }"
@@ -263,9 +263,9 @@ def get_project_items_advanced(
             except json.JSONDecodeError:
                 raise Exception("Invalid JSON in custom_variables parameter")
 
-        # Enforce GitHub API pagination limit
-        if first > 100:
-            first = 100
+        # Enforce reasonable pagination limit
+        if first > 25:
+            first = 25
 
         return client.get_project_items_advanced(
             project_id, first, after, custom_fields, custom_filters, variables_dict
@@ -283,8 +283,8 @@ def execute_custom_project_query(query: str, variables: Optional[str] = None) ->
     SECURITY: This tool validates queries to prevent mutations and schema introspection.
     Only 'query' operations are allowed, not 'mutation' or 'subscription'.
 
-    PAGINATION: Remember GitHub API limits pagination to 100 items per request.
-    Use 'first: 100' and cursor-based pagination for large datasets.
+    PAGINATION: Server limits pagination to 25 items per request for performance.
+    Use 'first: 25' and cursor-based pagination for large datasets.
 
     EFFICIENCY: Select only needed fields to reduce response size. Full project item
     data can exceed 25KB for just 20 items.
@@ -304,7 +304,7 @@ def execute_custom_project_query(query: str, variables: Optional[str] = None) ->
         query CountByMilestone($id: ID!, $after: String) {
           node(id: $id) {
             ... on ProjectV2 {
-              items(first: 100, after: $after) {
+              items(first: 25, after: $after) {
                 pageInfo { hasNextPage endCursor }
                 nodes {
                   fieldValues(first: 10) {
@@ -510,6 +510,507 @@ def delete_project(project_id: str) -> Dict[str, Any]:
         return client.delete_project(project_id)
     except (GitHubAPIError, RateLimitError) as e:
         raise Exception(f"GitHub API error: {e}")
+
+
+def _parse_search_filters(filters: Optional[str]) -> Dict[str, Any]:
+    """Parse JSON filters for search."""
+    filters_dict = {}
+    if filters:
+        import json
+        try:
+            filters_dict = json.loads(filters)
+        except json.JSONDecodeError:
+            raise Exception("Invalid JSON in filters parameter")
+    return filters_dict
+
+
+def _build_search_query() -> str:
+    """Build GraphQL query for searching project items."""
+    return """
+    query SearchProjectItems($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  id
+                  title
+                  body
+                  issueState: state
+                  number
+                  url
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  body
+                  prState: state
+                  number
+                  url
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                  body
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldTextValue {
+                    text
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldNumberValue {
+                    number
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldDateValue {
+                    date
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+
+def _matches_content_search(item: Dict[str, Any], query_lower: str) -> bool:
+    """Check if item content matches the search query."""
+    if not item.get("content"):
+        return False
+
+    content = item["content"]
+    title = content.get("title", "").lower()
+    body = content.get("body", "").lower()
+
+    return query_lower in title or query_lower in body
+
+
+def _matches_field_search(item: Dict[str, Any], query_lower: str) -> bool:
+    """Check if item field values match the search query."""
+    if not item.get("fieldValues", {}).get("nodes"):
+        return False
+
+    for field_value in item["fieldValues"]["nodes"]:
+        if field_value.get("text") and query_lower in field_value["text"].lower():
+            return True
+        elif field_value.get("name") and query_lower in field_value["name"].lower():
+            return True
+    return False
+
+
+def _apply_search_filters(item: Dict[str, Any], filters_dict: Dict[str, Any]) -> bool:
+    """Apply additional filters to search results."""
+    if not filters_dict:
+        return True
+
+    # Example filter: {"state": "OPEN", "field_name": "value"}
+    if "state" in filters_dict:
+        content = item.get("content", {})
+        if content.get("state") != filters_dict["state"]:
+            return False
+
+    # Add more filter logic as needed
+    return True
+
+
+@mcp.tool()
+def search_project_items(project_id: str, query: str, filters: Optional[str] = None) -> Dict[str, Any]:
+    """Search items by content/fields within a project
+
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. For large projects,
+    use pagination with 'after' cursor from pageInfo.endCursor.
+
+    CRITICAL: When searching large projects, you MUST paginate through ALL pages if hasNextPage=true.
+    Single page results will be incomplete.
+
+    Args:
+        project_id: GitHub Project ID
+        query: Search query string (searches in item content like title, body)
+        filters: Optional JSON string with additional filters (e.g., field values, states)
+
+    Returns:
+        Dictionary with 'nodes' (list of matching items) and 'pageInfo' (pagination info)
+    """
+    try:
+        client = get_github_client()
+        filters_dict = _parse_search_filters(filters)
+        graphql_query = _build_search_query()
+
+        variables = {"id": project_id, "first": 25, "after": None}
+        result = client._execute_with_retry(graphql_query, variables)
+
+        if not result.get("node"):
+            raise Exception("Project not found")
+
+        items_data = result["node"]["items"]
+        all_items = items_data["nodes"]
+
+        # Client-side filtering based on query and filters
+        filtered_items = []
+        query_lower = query.lower()
+
+        for item in all_items:
+            # Check if item matches search criteria
+            content_match = _matches_content_search(item, query_lower)
+            field_match = not content_match and _matches_field_search(item, query_lower)
+
+            if content_match or field_match:
+                # Apply additional filters if provided
+                if _apply_search_filters(item, filters_dict):
+                    filtered_items.append(item)
+
+        return {
+            "nodes": filtered_items,
+            "pageInfo": items_data["pageInfo"],
+            "totalMatches": len(filtered_items)
+        }
+
+    except (GitHubAPIError, RateLimitError) as e:
+        raise Exception(f"GitHub API error: {e}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {e}")
+
+
+def _build_field_value_query() -> str:
+    """Build GraphQL query for getting items with field values."""
+    return """
+    query GetItemsByFieldValue($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  id
+                  title
+                  issueState: state
+                  number
+                  url
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  prState: state
+                  number
+                  url
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldTextValue {
+                    text
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldMultiSelectValue {
+                    names
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldNumberValue {
+                    number
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldDateValue {
+                    date
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+
+def _check_field_value_match(field_value: Dict[str, Any], target_value: str) -> bool:
+    """Check if a field value matches the target value."""
+    if "text" in field_value and field_value["text"] == target_value:
+        return True
+    elif "name" in field_value and field_value["name"] == target_value:
+        return True
+    elif "names" in field_value and target_value in field_value["names"]:
+        return True
+    elif "number" in field_value and str(field_value["number"]) == target_value:
+        return True
+    elif "date" in field_value and field_value["date"] == target_value:
+        return True
+    return False
+
+
+def _filter_items_by_field_value(items: List[Dict[str, Any]], field_id: str, value: str) -> List[Dict[str, Any]]:
+    """Filter items by specific field value."""
+    filtered_items = []
+
+    for item in items:
+        if item.get("fieldValues", {}).get("nodes"):
+            for field_value in item["fieldValues"]["nodes"]:
+                field_info = field_value.get("field", {})
+
+                if field_info.get("id") == field_id:
+                    if _check_field_value_match(field_value, value):
+                        filtered_items.append(item)
+                        break
+
+    return filtered_items
+
+
+@mcp.tool()
+def get_items_by_field_value(project_id: str, field_id: str, value: str) -> Dict[str, Any]:
+    """Filter items by specific field values within a project
+
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. For large projects,
+    use pagination with 'after' cursor from pageInfo.endCursor.
+
+    CRITICAL: When filtering large projects, you MUST paginate through ALL pages if hasNextPage=true.
+    Single page results will be incomplete.
+
+    Args:
+        project_id: GitHub Project ID
+        field_id: Project field ID to filter by
+        value: Field value to match
+
+    Returns:
+        Dictionary with 'nodes' (list of matching items) and 'pageInfo' (pagination info)
+    """
+    try:
+        client = get_github_client()
+        graphql_query = _build_field_value_query()
+
+        variables = {"id": project_id, "first": 25, "after": None}
+        result = client._execute_with_retry(graphql_query, variables)
+
+        if not result.get("node"):
+            raise Exception("Project not found")
+
+        items_data = result["node"]["items"]
+        all_items = items_data["nodes"]
+
+        # Filter items by field value
+        filtered_items = _filter_items_by_field_value(all_items, field_id, value)
+
+        return {
+            "nodes": filtered_items,
+            "pageInfo": items_data["pageInfo"],
+            "totalMatches": len(filtered_items)
+        }
+
+    except (GitHubAPIError, RateLimitError) as e:
+        raise Exception(f"GitHub API error: {e}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {e}")
+
+
+def _build_milestone_query() -> str:
+    """Build GraphQL query for getting items with milestone data."""
+    return """
+    query GetItemsByMilestone($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  id
+                  title
+                  issueState: state
+                  number
+                  url
+                  milestone {
+                    title
+                  }
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  prState: state
+                  number
+                  url
+                  milestone {
+                    title
+                  }
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldMilestoneValue {
+                    milestone {
+                      title
+                    }
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+
+def _check_content_milestone(item: Dict[str, Any], milestone_name: str) -> bool:
+    """Check if item's content milestone matches the target milestone."""
+    return item.get("content", {}).get("milestone", {}).get("title") == milestone_name
+
+
+def _check_field_milestone(item: Dict[str, Any], milestone_name: str) -> bool:
+    """Check if item's field values contain matching milestone."""
+    if not item.get("fieldValues", {}).get("nodes"):
+        return False
+
+    for field_value in item["fieldValues"]["nodes"]:
+        if "milestone" in field_value:
+            milestone_info = field_value["milestone"]
+            if milestone_info and milestone_info.get("title") == milestone_name:
+                return True
+    return False
+
+
+def _filter_items_by_milestone(items: List[Dict[str, Any]], milestone_name: str) -> List[Dict[str, Any]]:
+    """Filter items by milestone name."""
+    filtered_items = []
+
+    for item in items:
+        content_match = _check_content_milestone(item, milestone_name)
+        field_match = not content_match and _check_field_milestone(item, milestone_name)
+
+        if content_match or field_match:
+            filtered_items.append(item)
+
+    return filtered_items
+
+
+@mcp.tool()
+def get_items_by_milestone(project_id: str, milestone_name: str) -> Dict[str, Any]:
+    """Get items in a specific milestone within a project
+
+    PAGINATION LIMITS: Server limits requests to max 25 items per request for performance. For large projects,
+    use pagination with 'after' cursor from pageInfo.endCursor.
+
+    CRITICAL: When filtering large projects, you MUST paginate through ALL pages if hasNextPage=true.
+    Single page results will be incomplete.
+
+    Args:
+        project_id: GitHub Project ID
+        milestone_name: Name of the milestone to filter by
+
+    Returns:
+        Dictionary with 'nodes' (list of items in milestone) and 'pageInfo' (pagination info)
+    """
+    try:
+        client = get_github_client()
+        graphql_query = _build_milestone_query()
+
+        variables = {"id": project_id, "first": 25, "after": None}
+        result = client._execute_with_retry(graphql_query, variables)
+
+        if not result.get("node"):
+            raise Exception("Project not found")
+
+        items_data = result["node"]["items"]
+        all_items = items_data["nodes"]
+
+        # Filter items by milestone
+        filtered_items = _filter_items_by_milestone(all_items, milestone_name)
+
+        return {
+            "nodes": filtered_items,
+            "pageInfo": items_data["pageInfo"],
+            "totalMatches": len(filtered_items)
+        }
+
+    except (GitHubAPIError, RateLimitError) as e:
+        raise Exception(f"GitHub API error: {e}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {e}")
 
 
 def main() -> None:
