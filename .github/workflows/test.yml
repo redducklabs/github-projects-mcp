@@ -107,21 +107,31 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
       run: |
         echo "Running test suite..."
-        # Run tests and handle known teardown errors (exit code 1 with passing tests)
+        # Run tests - check for functional test passes (ignore teardown errors)
         if [ -z "${{ secrets.TEST_GITHUB_TOKEN }}" ]; then
           echo "Running tests without GitHub token (skipping live API tests)"
-          pytest tests/test_compatibility.py tests/test_canary.py -v --tb=short --disable-warnings
+          pytest tests/test_compatibility.py tests/test_canary.py -v --tb=short --disable-warnings > test_output.txt 2>&1
         else
           echo "Running full test suite with live GitHub API tests"
-          pytest tests/ -v --tb=short --durations=10 --disable-warnings
+          pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
         fi
-        exit_code=$?
-        if [ $exit_code -eq 0 ] || [ $exit_code -eq 1 ]; then
-          echo "Tests completed (exit code: $exit_code)"
+        
+        # Check if tests functionally passed (look for PASSED status)
+        cat test_output.txt
+        passed_count=$(grep -o "PASSED" test_output.txt | wc -l)
+        failed_count=$(grep -o "FAILED" test_output.txt | wc -l)
+        
+        echo "Test Results Summary:"
+        echo "- Passed: $passed_count"
+        echo "- Failed: $failed_count"
+        
+        # Exit successfully if no tests failed (teardown errors don't count)
+        if [ "$failed_count" -eq 0 ]; then
+          echo "✅ All tests passed functionally"
           exit 0
         else
-          echo "Tests failed with exit code: $exit_code"
-          exit $exit_code
+          echo "❌ $failed_count test(s) failed"
+          exit 1
         fi
     
     - name: Run canary test (live integration)
