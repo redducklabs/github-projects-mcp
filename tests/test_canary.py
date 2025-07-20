@@ -126,7 +126,7 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
 
 ## API Operations Tested
 - ✅ Organization Projects: {test_stats.get('org_projects_count', 0)} projects found
-- ✅ Project Access: "{test_stats.get('project_title', 'Unknown')}"
+- ✅ Project Access: {test_stats.get('project_title', 'Unknown')}
 - ✅ Project Items: {test_stats.get('project_items_count', 0)} items
 
 ## MCP Tools Verified
@@ -137,7 +137,7 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
 - **Test Environment:** {config['repo_owner']}/{config['repo_name']}
 - **Project ID:** `{config['project_id']}`
 
-{"## Error Information\n```\n" + str(test_stats['error']) + "\n```\n" if test_stats.get('error') else ''}
+{'## Error Information\n```\n' + str(test_stats['error']) + '\n```\n' if test_stats.get('error') else ''}
 
 ---
 *This issue is automatically updated by the GitHub Projects MCP Server test suite to demonstrate functionality and serve as a health check.*
