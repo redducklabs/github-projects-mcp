@@ -55,25 +55,6 @@ jobs:
         python -c "import sys, os; sys.path.insert(0, os.path.join(os.getcwd(), 'tests')); import conftest; print('✅ conftest imported successfully')" || echo "❌ conftest import failed"
         python -c "from tests.test_compatibility import TestCompatibility; print('✅ test_compatibility imported successfully')" || echo "❌ test_compatibility import failed"
     
-    - name: Create test environment file
-      run: |
-        echo "Creating .env.test file..."
-        cat > .env.test << EOF
-        # GitHub Projects MCP Server Test Configuration
-        TEST_GITHUB_TOKEN=\${TEST_GITHUB_TOKEN}
-        TEST_ORG_NAME=\${TEST_ORG_NAME}
-        TEST_PROJECT_ID=\${TEST_PROJECT_ID}
-        TEST_REPO_OWNER=\${TEST_REPO_OWNER}
-        TEST_REPO_NAME=\${TEST_REPO_NAME}
-        MCP_TEST_HOST=\${MCP_TEST_HOST}
-        MCP_TEST_PORT_SSE=\${MCP_TEST_PORT_SSE}
-        MCP_TEST_PORT_HTTP=\${MCP_TEST_PORT_HTTP}
-        API_MAX_RETRIES=\${API_MAX_RETRIES}
-        API_RETRY_DELAY=\${API_RETRY_DELAY}
-        LOG_LEVEL=\${LOG_LEVEL}
-        TEST_ITEM_PREFIX=\${TEST_ITEM_PREFIX}
-        EOF
-    
     - name: Run linting checks
       run: |
         echo "Running code quality checks..."
@@ -88,8 +69,11 @@ jobs:
     - name: Check test configuration
       env:
         TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
-        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}
-        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID }}
+        API_MAX_RETRIES: ${{ vars.API_MAX_RETRIES }}
+        API_RETRY_DELAY: ${{ vars.API_RETRY_DELAY }}
+        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
       run: |
         echo "Checking test configuration..."
         if [ -z "$TEST_GITHUB_TOKEN" ]; then
@@ -99,32 +83,38 @@ jobs:
           echo "✅ TEST_GITHUB_TOKEN is configured (length: ${#TEST_GITHUB_TOKEN})"
         fi
         echo "Test environment: $TEST_ORG_NAME/$TEST_PROJECT_ID"
-        echo "Environment variables for pytest:"
+        echo "Required variables:"
         echo "- TEST_GITHUB_TOKEN: $(if [ -z "$TEST_GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET"; fi)"
         echo "- TEST_ORG_NAME: $TEST_ORG_NAME"
         echo "- TEST_PROJECT_ID: $TEST_PROJECT_ID"
+        echo "- API_MAX_RETRIES: $API_MAX_RETRIES"
+        echo "- API_RETRY_DELAY: $API_RETRY_DELAY"
+        echo "- LOG_LEVEL: $LOG_LEVEL"
     
     - name: Run unit tests
       env:
         # Test configuration from repository variables/secrets
         TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
-        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}
-        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}
-        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER || 'redducklabs' }}
-        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME || 'github-projects-mcp' }}
-        MCP_TEST_HOST: ${{ vars.MCP_TEST_HOST || 'localhost' }}
-        MCP_TEST_PORT_SSE: ${{ vars.MCP_TEST_PORT_SSE || '8001' }}
-        MCP_TEST_PORT_HTTP: ${{ vars.MCP_TEST_PORT_HTTP || '8002' }}
-        API_MAX_RETRIES: ${{ vars.API_MAX_RETRIES || '1' }}
-        API_RETRY_DELAY: ${{ vars.API_RETRY_DELAY || '1' }}
-        LOG_LEVEL: ${{ vars.LOG_LEVEL || 'ERROR' }}
-        TEST_ITEM_PREFIX: ${{ vars.TEST_ITEM_PREFIX || '[MCP-TEST]' }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID }}
+        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER }}
+        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME }}
+        MCP_TEST_HOST: ${{ vars.MCP_TEST_HOST }}
+        MCP_TEST_PORT_SSE: ${{ vars.MCP_TEST_PORT_SSE }}
+        MCP_TEST_PORT_HTTP: ${{ vars.MCP_TEST_PORT_HTTP }}
+        API_MAX_RETRIES: ${{ vars.API_MAX_RETRIES }}
+        API_RETRY_DELAY: ${{ vars.API_RETRY_DELAY }}
+        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+        TEST_ITEM_PREFIX: ${{ vars.TEST_ITEM_PREFIX }}
         # GitHub API configuration for the library
         GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
       run: |
         echo "Running test suite..."
         echo "Running full test suite with live GitHub API tests"
         echo "DEBUG: Environment check before pytest:"
+        echo "- API_MAX_RETRIES: $API_MAX_RETRIES"
+        echo "- API_RETRY_DELAY: $API_RETRY_DELAY"
+        echo "- LOG_LEVEL: $LOG_LEVEL"
         echo "- TEST_GITHUB_TOKEN: $(if [ -z "$TEST_GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET (${#TEST_GITHUB_TOKEN} chars)"; fi)"
         echo "- GITHUB_TOKEN: $(if [ -z "$GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET (${#GITHUB_TOKEN} chars)"; fi)"
         echo "- TEST_ORG_NAME: $TEST_ORG_NAME"
@@ -209,14 +199,17 @@ jobs:
       env:
         # Test configuration from repository variables/secrets
         TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
-        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}
-        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}
-        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER || 'redducklabs' }}
-        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME || 'github-projects-mcp' }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID }}
+        TEST_REPO_OWNER: ${{ vars.TEST_REPO_OWNER }}
+        TEST_REPO_NAME: ${{ vars.TEST_REPO_NAME }}
         GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
-        LOG_LEVEL: ERROR
+        API_MAX_RETRIES: ${{ vars.API_MAX_RETRIES }}
+        API_RETRY_DELAY: ${{ vars.API_RETRY_DELAY }}
+        LOG_LEVEL: ${{ vars.LOG_LEVEL }}
       run: |
         echo "Running canary test (live integration)..."
+        echo "Config check - API_MAX_RETRIES: $API_MAX_RETRIES, API_RETRY_DELAY: $API_RETRY_DELAY, LOG_LEVEL: $LOG_LEVEL"
         pytest tests/test_canary.py tests/test_live_integration.py -v -s
     
     - name: Upload test results

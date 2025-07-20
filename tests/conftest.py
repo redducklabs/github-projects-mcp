@@ -34,7 +34,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest.fixture(scope="session")
 def test_config() -> Dict[str, Any]:
     """Load test configuration from environment"""
-    # Load test environment variables
+    # Load .env.test if it exists (overrides environment variables)
     load_dotenv(".env.test", override=True)
     
     required_vars = [
