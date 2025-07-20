@@ -347,6 +347,111 @@ claude mcp add github-projects ./venv/Scripts/python github_projects_mcp/server.
 - Test token with: `gh auth status` or `curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user`
 - For Windows: Unicode console issues may appear but don't affect functionality
 
+## Using with VS Code
+
+VS Code supports MCP servers through GitHub Copilot (requires VS Code 1.102+ with MCP support enabled):
+
+### Option 1: Using MCP Commands (Recommended)
+
+1. **Install the MCP server:**
+   ```bash
+   pip install github-projects-mcp
+   ```
+
+2. **Add server using VS Code command:**
+   - Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+   - Run `MCP: Add Server`
+   - Choose workspace or global configuration
+   - Enter server details when prompted
+
+### Option 2: Manual Configuration
+
+1. **Install the server:**
+   ```bash
+   pip install github-projects-mcp
+   ```
+
+2. **Create MCP configuration file:**
+
+   **For workspace-specific:** `.vscode/mcp.json`
+   
+   **For user-wide:** Use Command Palette → `MCP: Open User Configuration`
+
+   ```json
+   {
+     "inputs": [
+       {
+         "type": "promptString",
+         "id": "github-token",
+         "description": "GitHub Personal Access Token",
+         "password": true
+       }
+     ],
+     "servers": {
+       "github-projects": {
+         "type": "stdio",
+         "command": "github-projects-mcp",
+         "env": {
+           "GITHUB_TOKEN": "${input:github-token}"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart VS Code** and configure your GitHub token when prompted
+
+## Using with Claude Desktop
+
+### Option 1: Install via DXT Extension (Recommended)
+
+When available, download the `.dxt` file from the [releases page](https://github.com/redducklabs/github-projects-mcp/releases) and install:
+
+1. **Download the `.dxt` file** from the latest release
+2. **Open Claude Desktop**
+3. **Install extension** by dragging the `.dxt` file into Claude Desktop or using the extension installer
+4. **Configure your GitHub token** when prompted
+
+### Option 2: Manual Installation
+
+1. **Install the MCP server:**
+   ```bash
+   pip install github-projects-mcp
+   ```
+
+2. **Add to Claude Desktop configuration:**
+
+   **On macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+   
+   **On Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+   ```json
+   {
+     "mcpServers": {
+       "github-projects": {
+         "command": "github-projects-mcp",
+         "env": {
+           "GITHUB_TOKEN": "your_github_token_here"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop**
+
+### Getting Your GitHub Token
+
+For both VS Code and Claude Desktop setup:
+
+1. **Go to GitHub Settings** → Developer settings → Personal access tokens
+2. **Create a new token** with these scopes:
+   - `project` (for managing projects)
+   - `read:project` (for reading project data)
+3. **Copy the token** and use it in your configuration
+
+**For organization projects:** Use a Fine-grained Personal Access Token with organization access.
+
 ### Example Usage with MCP Client
 
 For developers integrating programmatically:

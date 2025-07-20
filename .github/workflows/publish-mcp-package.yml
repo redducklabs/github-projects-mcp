@@ -29,19 +29,70 @@ jobs:
       with:
         python-version: '3.10'
     
+    - name: Set up Node.js for DXT CLI
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install build
+        npm install -g @anthropic-ai/dxt
     
-    - name: Build package
+    - name: Build Python package
       run: python -m build
+    
+    - name: Create DXT manifest
+      run: |
+        cat > manifest.json << 'EOF'
+        {
+          "dxt_version": "1.0.0",
+          "name": "github-projects-mcp",
+          "version": "${{ github.ref_name }}",
+          "author": "Red Duck Labs",
+          "description": "A Model Context Protocol server for GitHub Projects",
+          "server": {
+            "type": "python",
+            "module": "github_projects_mcp.server"
+          },
+          "dependencies": {
+            "pip": ["github-projects-mcp==${{ github.ref_name }}"]
+          },
+          "configuration": {
+            "GITHUB_TOKEN": {
+              "type": "secret",
+              "description": "GitHub Personal Access Token with project permissions",
+              "required": true
+            },
+            "API_MAX_RETRIES": {
+              "type": "string",
+              "description": "Maximum retries for rate-limited requests",
+              "default": "3"
+            },
+            "API_RETRY_DELAY": {
+              "type": "string", 
+              "description": "Delay in seconds between retries",
+              "default": "60"
+            }
+          }
+        }
+        EOF
+    
+    - name: Build DXT package
+      run: dxt pack
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/
+    
+    - name: Upload DXT package
+      uses: actions/upload-artifact@v4
+      with:
+        name: dxt-package
+        path: "*.dxt"
 
   publish:
     needs: build
