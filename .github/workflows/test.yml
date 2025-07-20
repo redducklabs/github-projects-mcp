@@ -143,9 +143,21 @@ jobs:
         fi
         
         echo "=== RUNNING FULL TEST SUITE ==="
+        set +e  # Don't exit on error
         pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
         pytest_exit_code=$?
+        set -e  # Re-enable exit on error
         echo "Pytest exit code: $pytest_exit_code"
+        
+        # Ensure output file exists and has content
+        if [ ! -f test_output.txt ] || [ ! -s test_output.txt ]; then
+          echo "WARNING: test_output.txt is missing or empty, trying simpler pytest run..."
+          set +e
+          pytest tests/ -v > test_output.txt 2>&1
+          pytest_exit_code=$?
+          set -e
+          echo "Fallback pytest exit code: $pytest_exit_code"
+        fi
         
         # Always show the output for debugging
         echo "=== PYTEST OUTPUT START ==="
