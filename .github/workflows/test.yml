@@ -52,21 +52,8 @@ jobs:
         python -c "from github_projects_mcp.server import mcp; print('✅ MCP server imported successfully')"
         python -c "import pytest; print(f'✅ Pytest version: {pytest.__version__}')"
         echo "=== CHECKING TEST IMPORTS ==="
-        python -c "
-import sys
-import os
-sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
-try:
-    import conftest
-    print('✅ conftest imported successfully')
-except Exception as e:
-    print(f'❌ conftest import failed: {e}')
-try:
-    from tests.test_compatibility import TestCompatibility
-    print('✅ test_compatibility imported successfully')
-except Exception as e:
-    print(f'❌ test_compatibility import failed: {e}')
-"
+        python -c "import sys, os; sys.path.insert(0, os.path.join(os.getcwd(), 'tests')); import conftest; print('✅ conftest imported successfully')" || echo "❌ conftest import failed"
+        python -c "from tests.test_compatibility import TestCompatibility; print('✅ test_compatibility imported successfully')" || echo "❌ test_compatibility import failed"
     
     - name: Create test environment file
       run: |
