@@ -151,14 +151,27 @@ jobs:
         echo "=== PYTEST OUTPUT START ==="
         cat test_output.txt
         echo "=== PYTEST OUTPUT END ==="
+        
+        # Debug the counting logic
+        echo "=== DEBUGGING TEST COUNTS ==="
+        echo "Lines with PASSED:"
+        grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" || echo "No PASSED lines found"
+        echo "Lines with FAILED:"
+        grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" || echo "No FAILED lines found"
+        
         passed_count=$(grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" | wc -l)
         failed_count=$(grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" | wc -l)
+        echo "Calculated counts: passed=$passed_count, failed=$failed_count"
         
         echo "Test Results Summary:"
         echo "- Passed: $passed_count"
         echo "- Failed: $failed_count"
         
         # Handle different pytest exit codes
+        echo "=== EXIT LOGIC DEBUG ==="
+        echo "pytest_exit_code=$pytest_exit_code"
+        echo "failed_count=$failed_count"
+        
         if [ "$pytest_exit_code" -eq 2 ]; then
           echo "❌ Pytest collection/configuration error (exit code 2)"
           echo "This usually means missing environment variables or import issues"
@@ -169,11 +182,12 @@ jobs:
         fi
         
         # Exit successfully if no tests failed (teardown errors don't count)
+        echo "Checking if failed_count ($failed_count) equals 0..."
         if [ "$failed_count" -eq 0 ]; then
-          echo "✅ All tests passed functionally"
+          echo "✅ All tests passed functionally - EXITING WITH SUCCESS"
           exit 0
         else
-          echo "❌ $failed_count test(s) failed"
+          echo "❌ $failed_count test(s) failed - EXITING WITH FAILURE"
           exit 1
         fi
     
