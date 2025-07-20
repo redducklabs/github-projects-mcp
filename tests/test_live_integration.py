@@ -79,7 +79,7 @@ class TestLiveIntegration:
 - ✅ Project Fields: {test_stats.get('project_fields_count', 0)} fields
 
 ## MCP Tools Verified
-{chr(10).join(f'- ✅ `{tool}`' for tool in test_stats.get('verified_tools', []))}
+{chr(10).join('- ✅ `' + tool + '`' for tool in test_stats.get('verified_tools', []))}
 
 ## System Information
 - **Python Version:** {test_stats.get('python_version', 'Unknown')}
@@ -266,7 +266,7 @@ class TestLiveIntegration:
             assert test_stats['passed_tests'] >= 4, f"Expected at least 4 passing tests, got {test_stats['passed_tests']}"
             assert test_stats['success_rate'] >= 80, f"Expected at least 80% success rate, got {test_stats['success_rate']:.1f}%"
             
-            print(f"\\n[SUCCESS] Integration test completed successfully!")
+            print(f"\n[SUCCESS] Integration test completed successfully!")
             print(f"[STATS] Results: {test_stats['passed_tests']}/{test_stats['total_tests']} tests passed ({test_stats['success_rate']:.1f}% success rate)")
             print(f"[TOOLS] Tools verified: {', '.join(test_stats['verified_tools'])}")
             

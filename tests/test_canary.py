@@ -130,7 +130,7 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
 - ✅ Project Items: {test_stats.get('project_items_count', 0)} items
 
 ## MCP Tools Verified
-{chr(10).join(f'- ✅ `{tool}`' for tool in test_stats.get('verified_tools', []))}
+{chr(10).join('- ✅ `' + tool + '`' for tool in test_stats.get('verified_tools', []))}
 
 ## System Information
 - **Python Version:** {test_stats.get('python_version', 'Unknown')}
