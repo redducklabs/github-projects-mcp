@@ -80,10 +80,23 @@ jobs:
         mypy github_projects_mcp/ --ignore-missing-imports --no-strict-optional --allow-untyped-defs || true
     
     - name: Check test configuration
+      env:
+        TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
+        TEST_ORG_NAME: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}
+        TEST_PROJECT_ID: ${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}
       run: |
         echo "Checking test configuration..."
-        echo "✅ TEST_GITHUB_TOKEN is configured"
-        echo "Test environment: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}/${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}"
+        if [ -z "$TEST_GITHUB_TOKEN" ]; then
+          echo "❌ ERROR: TEST_GITHUB_TOKEN is not set!"
+          exit 1
+        else
+          echo "✅ TEST_GITHUB_TOKEN is configured (length: ${#TEST_GITHUB_TOKEN})"
+        fi
+        echo "Test environment: $TEST_ORG_NAME/$TEST_PROJECT_ID"
+        echo "Environment variables for pytest:"
+        echo "- TEST_GITHUB_TOKEN: $(if [ -z "$TEST_GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET"; fi)"
+        echo "- TEST_ORG_NAME: $TEST_ORG_NAME"
+        echo "- TEST_PROJECT_ID: $TEST_PROJECT_ID"
     
     - name: Run unit tests
       env:
@@ -105,7 +118,15 @@ jobs:
       run: |
         echo "Running test suite..."
         echo "Running full test suite with live GitHub API tests"
+        echo "DEBUG: Environment check before pytest:"
+        echo "- TEST_GITHUB_TOKEN: $(if [ -z "$TEST_GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET (${#TEST_GITHUB_TOKEN} chars)"; fi)"
+        echo "- GITHUB_TOKEN: $(if [ -z "$GITHUB_TOKEN" ]; then echo "NOT SET"; else echo "SET (${#GITHUB_TOKEN} chars)"; fi)"
+        echo "- TEST_ORG_NAME: $TEST_ORG_NAME"
+        echo "- TEST_PROJECT_ID: $TEST_PROJECT_ID"
+        echo ""
         pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
+        pytest_exit_code=$?
+        echo "Pytest exit code: $pytest_exit_code"
         
         # Check if tests functionally passed (look for PASSED status)
         cat test_output.txt
@@ -115,6 +136,16 @@ jobs:
         echo "Test Results Summary:"
         echo "- Passed: $passed_count"
         echo "- Failed: $failed_count"
+        
+        # Handle different pytest exit codes
+        if [ "$pytest_exit_code" -eq 2 ]; then
+          echo "❌ Pytest collection/configuration error (exit code 2)"
+          echo "This usually means missing environment variables or import issues"
+          exit 2
+        elif [ "$pytest_exit_code" -gt 1 ]; then
+          echo "❌ Pytest internal error (exit code $pytest_exit_code)"
+          exit $pytest_exit_code
+        fi
         
         # Exit successfully if no tests failed (teardown errors don't count)
         if [ "$failed_count" -eq 0 ]; then
