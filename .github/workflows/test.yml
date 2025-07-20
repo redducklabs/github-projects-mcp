@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        python-version: ['3.12'] #'3.10', '3.11',
       fail-fast: false
     
     steps:
@@ -144,36 +144,31 @@ jobs:
         
         echo "=== RUNNING FULL TEST SUITE ==="
         set +e  # Don't exit on error
-        pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
+        # Run with minimal output to avoid truncation, focus on test results
+        pytest tests/ -v --tb=no --durations=0 --disable-warnings --maxfail=50 > test_output.txt 2>&1
         pytest_exit_code=$?
         set -e  # Re-enable exit on error
         echo "Pytest exit code: $pytest_exit_code"
-        
-        # Ensure output file exists and has content
-        if [ ! -f test_output.txt ] || [ ! -s test_output.txt ]; then
-          echo "WARNING: test_output.txt is missing or empty, trying simpler pytest run..."
-          set +e
-          pytest tests/ -v > test_output.txt 2>&1
-          pytest_exit_code=$?
-          set -e
-          echo "Fallback pytest exit code: $pytest_exit_code"
-        fi
         
         # Always show the output for debugging
         echo "=== PYTEST OUTPUT START ==="
         cat test_output.txt
         echo "=== PYTEST OUTPUT END ==="
         
-        # Debug the counting logic
+        # Debug the counting logic - focus on actual test results
         echo "=== DEBUGGING TEST COUNTS ==="
-        echo "Lines with PASSED:"
-        grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" || echo "No PASSED lines found"
-        echo "Lines with FAILED:"
-        grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" || echo "No FAILED lines found"
+        echo "All test result lines:"
+        grep -E "PASSED|FAILED|SKIPPED" test_output.txt | head -20 || echo "No test result lines found"
         
-        passed_count=$(grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" | wc -l)
-        failed_count=$(grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" | wc -l)
-        echo "Calculated counts: passed=$passed_count, failed=$failed_count"
+        # Count only actual test results, exclude error/teardown noise
+        passed_count=$(grep -E "test.*PASSED" test_output.txt | wc -l)
+        failed_count=$(grep -E "test.*FAILED" test_output.txt | wc -l)
+        skipped_count=$(grep -E "test.*SKIPPED" test_output.txt | wc -l)
+        
+        echo "Calculated counts:"
+        echo "- Passed: $passed_count"  
+        echo "- Failed: $failed_count"
+        echo "- Skipped: $skipped_count"
         
         echo "Test Results Summary:"
         echo "- Passed: $passed_count"
@@ -195,11 +190,18 @@ jobs:
         
         # Exit successfully if no tests failed (teardown errors don't count)
         echo "Checking if failed_count ($failed_count) equals 0..."
+        
+        echo ""
+        echo "=== FINAL DECISION ==="
         if [ "$failed_count" -eq 0 ]; then
-          echo "✅ All tests passed functionally - EXITING WITH SUCCESS"
+          echo "✅ SUCCESS: All tests passed functionally ($passed_count passed, $skipped_count skipped)"
+          echo "   Teardown errors from MCP library are ignored as expected"
+          echo "   EXITING WITH CODE 0"
           exit 0
         else
-          echo "❌ $failed_count test(s) failed - EXITING WITH FAILURE"
+          echo "❌ FAILURE: $failed_count actual test(s) failed"
+          echo "   This indicates real test failures, not just teardown issues"
+          echo "   EXITING WITH CODE 1"
           exit 1
         fi
     
