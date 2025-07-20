@@ -512,6 +512,142 @@ def delete_project(project_id: str) -> Dict[str, Any]:
         raise Exception(f"GitHub API error: {e}")
 
 
+def _parse_search_filters(filters: Optional[str]) -> Dict[str, Any]:
+    """Parse JSON filters for search."""
+    filters_dict = {}
+    if filters:
+        import json
+        try:
+            filters_dict = json.loads(filters)
+        except json.JSONDecodeError:
+            raise Exception("Invalid JSON in filters parameter")
+    return filters_dict
+
+
+def _build_search_query() -> str:
+    """Build GraphQL query for searching project items."""
+    return """
+    query SearchProjectItems($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  id
+                  title
+                  body
+                  issueState: state
+                  number
+                  url
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  body
+                  prState: state
+                  number
+                  url
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                  body
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldTextValue {
+                    text
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldNumberValue {
+                    number
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldDateValue {
+                    date
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+
+def _matches_content_search(item: Dict[str, Any], query_lower: str) -> bool:
+    """Check if item content matches the search query."""
+    if not item.get("content"):
+        return False
+
+    content = item["content"]
+    title = content.get("title", "").lower()
+    body = content.get("body", "").lower()
+
+    return query_lower in title or query_lower in body
+
+
+def _matches_field_search(item: Dict[str, Any], query_lower: str) -> bool:
+    """Check if item field values match the search query."""
+    if not item.get("fieldValues", {}).get("nodes"):
+        return False
+
+    for field_value in item["fieldValues"]["nodes"]:
+        if field_value.get("text") and query_lower in field_value["text"].lower():
+            return True
+        elif field_value.get("name") and query_lower in field_value["name"].lower():
+            return True
+    return False
+
+
+def _apply_search_filters(item: Dict[str, Any], filters_dict: Dict[str, Any]) -> bool:
+    """Apply additional filters to search results."""
+    if not filters_dict:
+        return True
+
+    # Example filter: {"state": "OPEN", "field_name": "value"}
+    if "state" in filters_dict:
+        content = item.get("content", {})
+        if content.get("state") != filters_dict["state"]:
+            return False
+
+    # Add more filter logic as needed
+    return True
+
+
 @mcp.tool()
 def search_project_items(project_id: str, query: str, filters: Optional[str] = None) -> Dict[str, Any]:
     """Search items by content/fields within a project
@@ -532,90 +668,121 @@ def search_project_items(project_id: str, query: str, filters: Optional[str] = N
     """
     try:
         client = get_github_client()
-        
-        # Parse filters if provided
-        filters_dict = {}
-        if filters:
-            import json
-            try:
-                filters_dict = json.loads(filters)
-            except json.JSONDecodeError:
-                raise Exception("Invalid JSON in filters parameter")
+        filters_dict = _parse_search_filters(filters)
+        graphql_query = _build_search_query()
 
-        # Build GraphQL query for search
-        # Note: GitHub's GraphQL API doesn't have built-in search within projects,
-        # so we'll fetch items and filter client-side for basic text search
-        graphql_query = """
-        query SearchProjectItems($id: ID!, $first: Int!, $after: String) {
-          node(id: $id) {
-            ... on ProjectV2 {
-              items(first: $first, after: $after) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
+        variables = {"id": project_id, "first": 25, "after": None}
+        result = client._execute_with_retry(graphql_query, variables)
+
+        if not result.get("node"):
+            raise Exception("Project not found")
+
+        items_data = result["node"]["items"]
+        all_items = items_data["nodes"]
+
+        # Client-side filtering based on query and filters
+        filtered_items = []
+        query_lower = query.lower()
+
+        for item in all_items:
+            # Check if item matches search criteria
+            content_match = _matches_content_search(item, query_lower)
+            field_match = not content_match and _matches_field_search(item, query_lower)
+
+            if content_match or field_match:
+                # Apply additional filters if provided
+                if _apply_search_filters(item, filters_dict):
+                    filtered_items.append(item)
+
+        return {
+            "nodes": filtered_items,
+            "pageInfo": items_data["pageInfo"],
+            "totalMatches": len(filtered_items)
+        }
+
+    except (GitHubAPIError, RateLimitError) as e:
+        raise Exception(f"GitHub API error: {e}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {e}")
+
+
+def _build_field_value_query() -> str:
+    """Build GraphQL query for getting items with field values."""
+    return """
+    query GetItemsByFieldValue($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
                   id
-                  content {
-                    ... on Issue {
-                      id
-                      title
-                      body
-                      issueState: state
-                      number
-                      url
-                    }
-                    ... on PullRequest {
-                      id
-                      title
-                      body
-                      prState: state
-                      number
-                      url
-                    }
-                    ... on DraftIssue {
-                      id
-                      title
-                      body
+                  title
+                  issueState: state
+                  number
+                  url
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  prState: state
+                  number
+                  url
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldTextValue {
+                    text
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
                     }
                   }
-                  fieldValues(first: 20) {
-                    nodes {
-                      ... on ProjectV2ItemFieldTextValue {
-                        text
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                      ... on ProjectV2ItemFieldSingleSelectValue {
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
                         name
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
                       }
-                      ... on ProjectV2ItemFieldNumberValue {
-                        number
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldMultiSelectValue {
+                    names
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
                       }
-                      ... on ProjectV2ItemFieldDateValue {
-                        date
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldNumberValue {
+                    number
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
+                      }
+                    }
+                  }
+                  ... on ProjectV2ItemFieldDateValue {
+                    date
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
+                        name
                       }
                     }
                   }
@@ -624,66 +791,41 @@ def search_project_items(project_id: str, query: str, filters: Optional[str] = N
             }
           }
         }
-        """
-        
-        variables = {"id": project_id, "first": 25, "after": None}
-        result = client._execute_with_retry(graphql_query, variables)
-        
-        if not result.get("node"):
-            raise Exception("Project not found")
-            
-        items_data = result["node"]["items"]
-        all_items = items_data["nodes"]
-        
-        # Client-side filtering based on query and filters
-        filtered_items = []
-        query_lower = query.lower()
-        
-        for item in all_items:
-            match = False
-            
-            # Search in content (title, body)
-            if item.get("content"):
-                content = item["content"]
-                title = content.get("title", "").lower()
-                body = content.get("body", "").lower()
-                
-                if query_lower in title or query_lower in body:
-                    match = True
-            
-            # Search in field values
-            if not match and item.get("fieldValues", {}).get("nodes"):
-                for field_value in item["fieldValues"]["nodes"]:
-                    if field_value.get("text") and query_lower in field_value["text"].lower():
-                        match = True
+      }
+    }
+    """
+
+
+def _check_field_value_match(field_value: Dict[str, Any], target_value: str) -> bool:
+    """Check if a field value matches the target value."""
+    if "text" in field_value and field_value["text"] == target_value:
+        return True
+    elif "name" in field_value and field_value["name"] == target_value:
+        return True
+    elif "names" in field_value and target_value in field_value["names"]:
+        return True
+    elif "number" in field_value and str(field_value["number"]) == target_value:
+        return True
+    elif "date" in field_value and field_value["date"] == target_value:
+        return True
+    return False
+
+
+def _filter_items_by_field_value(items: List[Dict[str, Any]], field_id: str, value: str) -> List[Dict[str, Any]]:
+    """Filter items by specific field value."""
+    filtered_items = []
+
+    for item in items:
+        if item.get("fieldValues", {}).get("nodes"):
+            for field_value in item["fieldValues"]["nodes"]:
+                field_info = field_value.get("field", {})
+
+                if field_info.get("id") == field_id:
+                    if _check_field_value_match(field_value, value):
+                        filtered_items.append(item)
                         break
-                    elif field_value.get("name") and query_lower in field_value["name"].lower():
-                        match = True
-                        break
-            
-            # Apply additional filters if provided
-            if match and filters_dict:
-                # Example filter: {"state": "OPEN", "field_name": "value"}
-                if "state" in filters_dict:
-                    content = item.get("content", {})
-                    if content.get("state") != filters_dict["state"]:
-                        match = False
-                
-                # Add more filter logic as needed
-                
-            if match:
-                filtered_items.append(item)
-        
-        return {
-            "nodes": filtered_items,
-            "pageInfo": items_data["pageInfo"],
-            "totalMatches": len(filtered_items)
-        }
-        
-    except (GitHubAPIError, RateLimitError) as e:
-        raise Exception(f"GitHub API error: {e}")
-    except Exception as e:
-        raise Exception(f"Unexpected error: {e}")
+
+    return filtered_items
 
 
 @mcp.tool()
@@ -706,85 +848,81 @@ def get_items_by_field_value(project_id: str, field_id: str, value: str) -> Dict
     """
     try:
         client = get_github_client()
-        
-        # Build GraphQL query to get items with specific field value
-        graphql_query = """
-        query GetItemsByFieldValue($id: ID!, $first: Int!, $after: String) {
-          node(id: $id) {
-            ... on ProjectV2 {
-              items(first: $first, after: $after) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
+        graphql_query = _build_field_value_query()
+
+        variables = {"id": project_id, "first": 25, "after": None}
+        result = client._execute_with_retry(graphql_query, variables)
+
+        if not result.get("node"):
+            raise Exception("Project not found")
+
+        items_data = result["node"]["items"]
+        all_items = items_data["nodes"]
+
+        # Filter items by field value
+        filtered_items = _filter_items_by_field_value(all_items, field_id, value)
+
+        return {
+            "nodes": filtered_items,
+            "pageInfo": items_data["pageInfo"],
+            "totalMatches": len(filtered_items)
+        }
+
+    except (GitHubAPIError, RateLimitError) as e:
+        raise Exception(f"GitHub API error: {e}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {e}")
+
+
+def _build_milestone_query() -> str:
+    """Build GraphQL query for getting items with milestone data."""
+    return """
+    query GetItemsByMilestone($id: ID!, $first: Int!, $after: String) {
+      node(id: $id) {
+        ... on ProjectV2 {
+          items(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              id
+              content {
+                ... on Issue {
                   id
-                  content {
-                    ... on Issue {
-                      id
-                      title
-                      issueState: state
-                      number
-                      url
-                    }
-                    ... on PullRequest {
-                      id
-                      title
-                      prState: state
-                      number
-                      url
-                    }
-                    ... on DraftIssue {
-                      id
-                      title
-                    }
+                  title
+                  issueState: state
+                  number
+                  url
+                  milestone {
+                    title
                   }
-                  fieldValues(first: 20) {
-                    nodes {
-                      ... on ProjectV2ItemFieldTextValue {
-                        text
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                      ... on ProjectV2ItemFieldSingleSelectValue {
+                }
+                ... on PullRequest {
+                  id
+                  title
+                  prState: state
+                  number
+                  url
+                  milestone {
+                    title
+                  }
+                }
+                ... on DraftIssue {
+                  id
+                  title
+                }
+              }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldMilestoneValue {
+                    milestone {
+                      title
+                    }
+                    field {
+                      ... on ProjectV2FieldCommon {
+                        id
                         name
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                      ... on ProjectV2ItemFieldMultiSelectValue {
-                        names
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                      ... on ProjectV2ItemFieldNumberValue {
-                        number
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                      ... on ProjectV2ItemFieldDateValue {
-                        date
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
                       }
                     }
                   }
@@ -793,54 +931,41 @@ def get_items_by_field_value(project_id: str, field_id: str, value: str) -> Dict
             }
           }
         }
-        """
-        
-        variables = {"id": project_id, "first": 25, "after": None}
-        result = client._execute_with_retry(graphql_query, variables)
-        
-        if not result.get("node"):
-            raise Exception("Project not found")
-            
-        items_data = result["node"]["items"]
-        all_items = items_data["nodes"]
-        
-        # Filter items by field value
-        filtered_items = []
-        
-        for item in all_items:
-            if item.get("fieldValues", {}).get("nodes"):
-                for field_value in item["fieldValues"]["nodes"]:
-                    field_info = field_value.get("field", {})
-                    
-                    if field_info.get("id") == field_id:
-                        # Check different field value types
-                        field_match = False
-                        
-                        if "text" in field_value and field_value["text"] == value:
-                            field_match = True
-                        elif "name" in field_value and field_value["name"] == value:
-                            field_match = True
-                        elif "names" in field_value and value in field_value["names"]:
-                            field_match = True
-                        elif "number" in field_value and str(field_value["number"]) == value:
-                            field_match = True
-                        elif "date" in field_value and field_value["date"] == value:
-                            field_match = True
-                        
-                        if field_match:
-                            filtered_items.append(item)
-                            break
-        
-        return {
-            "nodes": filtered_items,
-            "pageInfo": items_data["pageInfo"],
-            "totalMatches": len(filtered_items)
-        }
-        
-    except (GitHubAPIError, RateLimitError) as e:
-        raise Exception(f"GitHub API error: {e}")
-    except Exception as e:
-        raise Exception(f"Unexpected error: {e}")
+      }
+    }
+    """
+
+
+def _check_content_milestone(item: Dict[str, Any], milestone_name: str) -> bool:
+    """Check if item's content milestone matches the target milestone."""
+    return item.get("content", {}).get("milestone", {}).get("title") == milestone_name
+
+
+def _check_field_milestone(item: Dict[str, Any], milestone_name: str) -> bool:
+    """Check if item's field values contain matching milestone."""
+    if not item.get("fieldValues", {}).get("nodes"):
+        return False
+
+    for field_value in item["fieldValues"]["nodes"]:
+        if "milestone" in field_value:
+            milestone_info = field_value["milestone"]
+            if milestone_info and milestone_info.get("title") == milestone_name:
+                return True
+    return False
+
+
+def _filter_items_by_milestone(items: List[Dict[str, Any]], milestone_name: str) -> List[Dict[str, Any]]:
+    """Filter items by milestone name."""
+    filtered_items = []
+
+    for item in items:
+        content_match = _check_content_milestone(item, milestone_name)
+        field_match = not content_match and _check_field_milestone(item, milestone_name)
+
+        if content_match or field_match:
+            filtered_items.append(item)
+
+    return filtered_items
 
 
 @mcp.tool()
@@ -862,104 +987,26 @@ def get_items_by_milestone(project_id: str, milestone_name: str) -> Dict[str, An
     """
     try:
         client = get_github_client()
-        
-        # Build GraphQL query to get items with milestone field values
-        graphql_query = """
-        query GetItemsByMilestone($id: ID!, $first: Int!, $after: String) {
-          node(id: $id) {
-            ... on ProjectV2 {
-              items(first: $first, after: $after) {
-                pageInfo {
-                  hasNextPage
-                  endCursor
-                }
-                nodes {
-                  id
-                  content {
-                    ... on Issue {
-                      id
-                      title
-                      issueState: state
-                      number
-                      url
-                      milestone {
-                        title
-                      }
-                    }
-                    ... on PullRequest {
-                      id
-                      title
-                      prState: state
-                      number
-                      url
-                      milestone {
-                        title
-                      }
-                    }
-                    ... on DraftIssue {
-                      id
-                      title
-                    }
-                  }
-                  fieldValues(first: 20) {
-                    nodes {
-                      ... on ProjectV2ItemFieldMilestoneValue {
-                        milestone {
-                          title
-                        }
-                        field {
-                          ... on ProjectV2FieldCommon {
-                            id
-                            name
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        """
-        
+        graphql_query = _build_milestone_query()
+
         variables = {"id": project_id, "first": 25, "after": None}
         result = client._execute_with_retry(graphql_query, variables)
-        
+
         if not result.get("node"):
             raise Exception("Project not found")
-            
+
         items_data = result["node"]["items"]
         all_items = items_data["nodes"]
-        
+
         # Filter items by milestone
-        filtered_items = []
-        
-        for item in all_items:
-            milestone_match = False
-            
-            # Check milestone in content (for Issues/PRs)
-            if item.get("content", {}).get("milestone", {}).get("title") == milestone_name:
-                milestone_match = True
-            
-            # Check milestone in project field values
-            if not milestone_match and item.get("fieldValues", {}).get("nodes"):
-                for field_value in item["fieldValues"]["nodes"]:
-                    if "milestone" in field_value:
-                        milestone_info = field_value["milestone"]
-                        if milestone_info and milestone_info.get("title") == milestone_name:
-                            milestone_match = True
-                            break
-            
-            if milestone_match:
-                filtered_items.append(item)
-        
+        filtered_items = _filter_items_by_milestone(all_items, milestone_name)
+
         return {
             "nodes": filtered_items,
             "pageInfo": items_data["pageInfo"],
             "totalMatches": len(filtered_items)
         }
-        
+
     except (GitHubAPIError, RateLimitError) as e:
         raise Exception(f"GitHub API error: {e}")
     except Exception as e:
