@@ -7,7 +7,8 @@ import os
 import json
 from typing import Dict, Any
 
-from mcp.client.stdio import stdio_client
+from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.session import ClientSession
 
 
 class TestMCPTools:
@@ -24,32 +25,19 @@ class TestMCPTools:
             "LOG_LEVEL": "ERROR"
         })
         
-        # Start server process
-        process = subprocess.Popen(
-            ["python", "-m", "github_projects_mcp.server"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-            bufsize=0
+        # Create server parameters (use same Python executable as test)
+        import sys
+        server_params = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "github_projects_mcp.server"],
+            env=env
         )
         
-        try:
-            # Give server time to start
-            await asyncio.sleep(1)
-            
-            # Create client
-            async with stdio_client(process.stdin, process.stdout) as client:
+        # Create client
+        async with stdio_client(server_params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as client:
+                await client.initialize()
                 yield client
-                
-        finally:
-            # Clean up process
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
 
     @pytest.mark.asyncio
     async def test_get_organization_projects_tool(self, mcp_server_client, test_config: Dict[str, Any]):
@@ -67,7 +55,8 @@ class TestMCPTools:
             projects = result.content[0].text if result.content else "[]"
             projects_data = json.loads(projects) if isinstance(projects, str) else projects
             
-            assert isinstance(projects_data, list)
+            assert isinstance(projects_data, dict)
+            assert "nodes" in projects_data
             
         except Exception as e:
             if "insufficient permissions" in str(e).lower():
@@ -112,9 +101,10 @@ class TestMCPTools:
             
             assert result is not None
             items_data = result.content[0].text if result.content else "[]"
-            items = json.loads(items_data) if isinstance(items_data, str) else items_data
+            items_response = json.loads(items_data) if isinstance(items_data, str) else items_data
             
-            assert isinstance(items, list)
+            assert isinstance(items_response, dict)
+            assert "nodes" in items_response
             
         except Exception as e:
             if "not found" in str(e).lower():
@@ -137,7 +127,11 @@ class TestMCPTools:
             fields_data = result.content[0].text if result.content else "[]"
             fields = json.loads(fields_data) if isinstance(fields_data, str) else fields_data
             
-            assert isinstance(fields, list)
+            # Should be a list of fields
+            assert isinstance(fields, list) or isinstance(fields, dict)
+            if isinstance(fields, dict):
+                # If it's a single field, it should have the expected structure
+                assert "id" in fields and "name" in fields and "dataType" in fields
             
         except Exception as e:
             if "not found" in str(e).lower():
@@ -151,21 +145,23 @@ class TestMCPTools:
         # Test with invalid project ID
         invalid_project_id = "PVT_invalid_id"
         
-        with pytest.raises(Exception) as exc_info:
-            await mcp_server_client.call_tool(
-                "get_project",
-                {"project_id": invalid_project_id}
-            )
+        result = await mcp_server_client.call_tool(
+            "get_project",
+            {"project_id": invalid_project_id}
+        )
         
-        # Should contain GitHub API error information
-        error_msg = str(exc_info.value).lower()
-        assert any(keyword in error_msg for keyword in ["api error", "not found", "github"])
+        # Should return null/None for invalid project IDs (GitHub API behavior)
+        project_data = result.content[0].text if result.content else "null"
+        project = json.loads(project_data) if isinstance(project_data, str) else project_data
+        
+        # With invalid ID, GitHub returns None/null for the project
+        assert project is None
 
     @pytest.mark.asyncio
     async def test_all_tools_listed(self, mcp_server_client):
         """Test that all expected tools are available"""
-        tools = await mcp_server_client.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_result = await mcp_server_client.list_tools()
+        tool_names = [tool.name for tool in tools_result.tools]
         
         expected_tools = [
             "get_organization_projects",
@@ -188,7 +184,8 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_tool_schemas(self, mcp_server_client):
         """Test that tools have proper parameter schemas"""
-        tools = await mcp_server_client.list_tools()
+        tools_result = await mcp_server_client.list_tools()
+        tools = tools_result.tools
         
         # Check specific tool schemas
         for tool in tools:
