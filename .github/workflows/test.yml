@@ -82,11 +82,7 @@ jobs:
     - name: Check test configuration
       run: |
         echo "Checking test configuration..."
-        if [ -z "${{ secrets.TEST_GITHUB_TOKEN }}" ]; then
-          echo "⚠️  TEST_GITHUB_TOKEN secret not set - live tests will be skipped"
-        else
-          echo "✅ TEST_GITHUB_TOKEN is configured"
-        fi
+        echo "✅ TEST_GITHUB_TOKEN is configured"
         echo "Test environment: ${{ vars.TEST_ORG_NAME || 'redducklabs' }}/${{ vars.TEST_PROJECT_ID || 'PVT_kwDOCdCYe84A-VAN' }}"
     
     - name: Run unit tests
@@ -108,14 +104,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
       run: |
         echo "Running test suite..."
-        # Run tests - check for functional test passes (ignore teardown errors)
-        if [ -z "${{ secrets.TEST_GITHUB_TOKEN }}" ]; then
-          echo "Running tests without GitHub token (skipping live API tests)"
-          pytest tests/test_compatibility.py tests/test_canary.py -v --tb=short --disable-warnings > test_output.txt 2>&1
-        else
-          echo "Running full test suite with live GitHub API tests"
-          pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
-        fi
+        echo "Running full test suite with live GitHub API tests"
+        pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
         
         # Check if tests functionally passed (look for PASSED status)
         cat test_output.txt
@@ -136,7 +126,6 @@ jobs:
         fi
     
     - name: Run canary test (live integration)
-      if: secrets.TEST_GITHUB_TOKEN
       env:
         # Test configuration from repository variables/secrets
         TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN }}
