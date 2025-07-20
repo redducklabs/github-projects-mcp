@@ -46,8 +46,27 @@ jobs:
     
     - name: Verify installation
       run: |
-        python -c "import github_projects_mcp; print('Package imported successfully')"
-        python -c "from github_projects_mcp.server import mcp; print('MCP server imported successfully')"
+        echo "=== VERIFYING PACKAGE INSTALLATION ==="
+        python -c "import sys; print(f'Python version: {sys.version}')"
+        python -c "import github_projects_mcp; print('✅ Package imported successfully')"
+        python -c "from github_projects_mcp.server import mcp; print('✅ MCP server imported successfully')"
+        python -c "import pytest; print(f'✅ Pytest version: {pytest.__version__}')"
+        echo "=== CHECKING TEST IMPORTS ==="
+        python -c "
+import sys
+import os
+sys.path.insert(0, os.path.join(os.getcwd(), 'tests'))
+try:
+    import conftest
+    print('✅ conftest imported successfully')
+except Exception as e:
+    print(f'❌ conftest import failed: {e}')
+try:
+    from tests.test_compatibility import TestCompatibility
+    print('✅ test_compatibility imported successfully')
+except Exception as e:
+    print(f'❌ test_compatibility import failed: {e}')
+"
     
     - name: Create test environment file
       run: |
@@ -124,12 +143,27 @@ jobs:
         echo "- TEST_ORG_NAME: $TEST_ORG_NAME"
         echo "- TEST_PROJECT_ID: $TEST_PROJECT_ID"
         echo ""
+        
+        # First try to collect tests only to isolate collection issues
+        echo "=== TESTING PYTEST COLLECTION ==="
+        pytest --collect-only tests/ -q
+        collection_exit_code=$?
+        echo "Collection exit code: $collection_exit_code"
+        
+        if [ "$collection_exit_code" -ne 0 ]; then
+          echo "❌ Test collection failed, trying with verbose output..."
+          pytest --collect-only tests/ -v
+        fi
+        
+        echo "=== RUNNING FULL TEST SUITE ==="
         pytest tests/ -v --tb=short --durations=10 --disable-warnings > test_output.txt 2>&1
         pytest_exit_code=$?
         echo "Pytest exit code: $pytest_exit_code"
         
-        # Check if tests functionally passed (look for PASSED status)
+        # Always show the output for debugging
+        echo "=== PYTEST OUTPUT START ==="
         cat test_output.txt
+        echo "=== PYTEST OUTPUT END ==="
         passed_count=$(grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" | wc -l)
         failed_count=$(grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" | wc -l)
         
