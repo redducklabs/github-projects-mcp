@@ -137,7 +137,7 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
 - **Test Environment:** {config['repo_owner']}/{config['repo_name']}
 - **Project ID:** `{config['project_id']}`
 
-{f"## Error Information\\n```\\n{test_stats['error']}\\n```\\n" if test_stats.get('error') else ''}
+{"## Error Information\n```\n" + str(test_stats['error']) + "\n```\n" if test_stats.get('error') else ''}
 
 ---
 *This issue is automatically updated by the GitHub Projects MCP Server test suite to demonstrate functionality and serve as a health check.*
