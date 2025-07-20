@@ -113,32 +113,53 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
     
     success_icon = "✅" if test_stats.get('success_rate', 0) == 100 else "⚠️"
     
-    body = f"""# 🤖 Automated Test Results
+    # Build the body in parts to avoid f-string complexity
+    status_text = 'PASSING' if test_stats.get('success_rate', 0) == 100 else 'FAILING'
+    
+    # Basic stats section
+    basic_stats = f"""# 🤖 Automated Test Results
 
 **Last Updated:** {timestamp}  
-**Status:** {success_icon} {'PASSING' if test_stats.get('success_rate', 0) == 100 else 'FAILING'}
+**Status:** {success_icon} {status_text}
 
 ## Test Statistics
 - **Total Tests Run:** {test_stats.get('total_tests', 0)}
 - **Tests Passed:** {test_stats.get('passed_tests', 0)}
 - **Tests Failed:** {test_stats.get('total_tests', 0) - test_stats.get('passed_tests', 0)}
-- **Test Success Rate:** {test_stats.get('success_rate', 0):.1f}%
-
+- **Test Success Rate:** {test_stats.get('success_rate', 0):.1f}%"""
+    
+    # API operations section
+    api_ops = f"""
 ## API Operations Tested
 - ✅ Organization Projects: {test_stats.get('org_projects_count', 0)} projects found
 - ✅ Project Access: {test_stats.get('project_title', 'Unknown')}
-- ✅ Project Items: {test_stats.get('project_items_count', 0)} items
-
+- ✅ Project Items: {test_stats.get('project_items_count', 0)} items"""
+    
+    # Tools section - build safely
+    tools_list = test_stats.get('verified_tools', [])
+    tools_text = '\n'.join('- ✅ `' + tool + '`' for tool in tools_list)
+    tools_section = f"""
 ## MCP Tools Verified
-{chr(10).join('- ✅ `' + tool + '`' for tool in test_stats.get('verified_tools', []))}
-
+{tools_text}"""
+    
+    # System info section
+    sys_info = f"""
 ## System Information
 - **Python Version:** {test_stats.get('python_version', 'Unknown')}
 - **Test Environment:** {config['repo_owner']}/{config['repo_name']}
-- **Project ID:** `{config['project_id']}`
-
-{'## Error Information\n```\n' + str(test_stats['error']) + '\n```\n' if test_stats.get('error') else ''}
-
+- **Project ID:** `{config['project_id']}`"""
+    
+    # Error section - build safely
+    error_section = ''
+    if test_stats.get('error'):
+        error_section = f"""
+## Error Information
+```
+{test_stats['error']}
+```"""
+    
+    # Footer section
+    footer = f"""
 ---
 *This issue is automatically updated by the GitHub Projects MCP Server test suite to demonstrate functionality and serve as a health check.*
 
@@ -148,8 +169,10 @@ def update_canary_issue(config: Dict[str, Any], test_stats: Dict[str, Any]):
 📋 **Public Project:** https://github.com/orgs/{config['org_name']}/projects/6
 
 ### Recent Test History
-This canary is updated every time the test suite runs, providing a live demonstration of the MCP server's capabilities.
-"""
+This canary is updated every time the test suite runs, providing a live demonstration of the MCP server's capabilities."""
+    
+    # Combine all parts
+    body = basic_stats + api_ops + tools_section + sys_info + error_section + footer
     
     # Update the issue
     update_url = f'https://api.github.com/repos/{config["repo_owner"]}/{config["repo_name"]}/issues/{test_issue["number"]}'

@@ -62,7 +62,8 @@ class TestLiveIntegration:
         timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
         
         title = "[MCP-TEST] GitHub Projects MCP Server Test Results"
-        body = f"""# 🤖 Automated Test Results
+        # Build body in safe parts
+        header = f"""# 🤖 Automated Test Results
         
 **Last Updated:** {timestamp}
 
@@ -70,17 +71,22 @@ class TestLiveIntegration:
 - **Total Tests Run:** {test_stats.get('total_tests', 0)}
 - **Tests Passed:** {test_stats.get('passed_tests', 0)}
 - **Tests Failed:** {test_stats.get('failed_tests', 0)}
-- **Test Success Rate:** {test_stats.get('success_rate', 0):.1f}%
-
+- **Test Success Rate:** {test_stats.get('success_rate', 0):.1f}%"""
+        
+        api_section = f"""
 ## API Operations Tested
 - ✅ Organization Projects: {test_stats.get('org_projects_count', 0)} projects found
-- ✅ Project Access: "{test_stats.get('project_title', 'Unknown')}"
+- ✅ Project Access: {test_stats.get('project_title', 'Unknown')}
 - ✅ Project Items: {test_stats.get('project_items_count', 0)} items
-- ✅ Project Fields: {test_stats.get('project_fields_count', 0)} fields
-
+- ✅ Project Fields: {test_stats.get('project_fields_count', 0)} fields"""
+        
+        tools_list = test_stats.get('verified_tools', [])
+        tools_text = '\n'.join('- ✅ `' + tool + '`' for tool in tools_list)
+        tools_section = f"""
 ## MCP Tools Verified
-{chr(10).join('- ✅ `' + tool + '`' for tool in test_stats.get('verified_tools', []))}
-
+{tools_text}"""
+        
+        system_section = f"""
 ## System Information
 - **Python Version:** {test_stats.get('python_version', 'Unknown')}
 - **MCP SDK Version:** {test_stats.get('mcp_version', 'Unknown')}
@@ -89,16 +95,18 @@ class TestLiveIntegration:
 ## Test Environment
 - **Repository:** {repo_owner}/{repo_name}
 - **Project ID:** `{config['project_id']}`
-- **Organization:** {config['org_name']}
-
+- **Organization:** {config['org_name']}"""
+        
+        footer = f"""
 ---
 *This issue is automatically updated by the GitHub Projects MCP Server test suite to demonstrate functionality and serve as a health check.*
 
 **GitHub Projects MCP Server:** A Model Context Protocol server that provides GitHub Projects management tools for AI assistants like Claude.
 
 🔗 **Repository:** https://github.com/{repo_owner}/{repo_name}
-📋 **Public Project:** https://github.com/orgs/{config['org_name']}/projects/6
-"""
+📋 **Public Project:** https://github.com/orgs/{config['org_name']}/projects/6"""
+        
+        body = header + api_section + tools_section + system_section + footer
         
         if test_issue:
             # Update existing issue
