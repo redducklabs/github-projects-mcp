@@ -109,8 +109,8 @@ jobs:
         
         # Check if tests functionally passed (look for PASSED status)
         cat test_output.txt
-        passed_count=$(grep -o "PASSED" test_output.txt | wc -l)
-        failed_count=$(grep -o "FAILED" test_output.txt | wc -l)
+        passed_count=$(grep "PASSED" test_output.txt | grep -v "DEBUG\|INFO" | wc -l)
+        failed_count=$(grep "FAILED" test_output.txt | grep -v "DEBUG\|INFO\|ERROR" | wc -l)
         
         echo "Test Results Summary:"
         echo "- Passed: $passed_count"
