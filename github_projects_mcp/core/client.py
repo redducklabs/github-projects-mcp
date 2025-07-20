@@ -62,12 +62,22 @@ class GitHubProjectsClient:
                         raise GitHubAPIError(error_msg, status_code)
                     raise GitHubAPIError(error_msg)
     
-    def get_organization_projects(self, org_login: str, first: int = 20) -> List[Dict[str, Any]]:
-        """Get projects for an organization"""
+    def get_organization_projects(self, org_login: str, first: int = 20, after: str = None) -> Dict[str, Any]:
+        """Get projects for an organization with pagination support"""
+        # Enforce GitHub API pagination limit
+        if first > 100:
+            first = 100
+        elif first < 1:
+            first = 1
+            
         query = """
-        query GetOrgProjects($login: String!, $first: Int!) {
+        query GetOrgProjects($login: String!, $first: Int!, $after: String) {
           organization(login: $login) {
-            projectsV2(first: $first) {
+            projectsV2(first: $first, after: $after) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
               nodes {
                 id
                 title
@@ -93,15 +103,27 @@ class GitHubProjectsClient:
         }
         """
         variables = {"login": org_login, "first": first}
+        if after:
+            variables["after"] = after
         result = self._execute_with_retry(query, variables)
-        return result["organization"]["projectsV2"]["nodes"]
+        return result["organization"]["projectsV2"]
     
-    def get_user_projects(self, user_login: str, first: int = 20) -> List[Dict[str, Any]]:
-        """Get projects for a user"""
+    def get_user_projects(self, user_login: str, first: int = 20, after: str = None) -> Dict[str, Any]:
+        """Get projects for a user with pagination support"""
+        # Enforce GitHub API pagination limit
+        if first > 100:
+            first = 100
+        elif first < 1:
+            first = 1
+            
         query = """
-        query GetUserProjects($login: String!, $first: Int!) {
+        query GetUserProjects($login: String!, $first: Int!, $after: String) {
           user(login: $login) {
-            projectsV2(first: $first) {
+            projectsV2(first: $first, after: $after) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
               nodes {
                 id
                 title
@@ -127,8 +149,10 @@ class GitHubProjectsClient:
         }
         """
         variables = {"login": user_login, "first": first}
+        if after:
+            variables["after"] = after
         result = self._execute_with_retry(query, variables)
-        return result["user"]["projectsV2"]["nodes"]
+        return result["user"]["projectsV2"]
     
     def get_project(self, project_id: str) -> Dict[str, Any]:
         """Get a specific project by ID"""
@@ -162,13 +186,23 @@ class GitHubProjectsClient:
         result = self._execute_with_retry(query, variables)
         return result["node"]
     
-    def get_project_items(self, project_id: str, first: int = 50) -> List[Dict[str, Any]]:
-        """Get items in a project"""
+    def get_project_items(self, project_id: str, first: int = 50, after: str = None) -> Dict[str, Any]:
+        """Get items in a project with pagination support"""
+        # Enforce GitHub API pagination limit
+        if first > 100:
+            first = 100
+        elif first < 1:
+            first = 1
+            
         query = """
-        query GetProjectItems($id: ID!, $first: Int!) {
+        query GetProjectItems($id: ID!, $first: Int!, $after: String) {
           node(id: $id) {
             ... on ProjectV2 {
-              items(first: $first) {
+              items(first: $first, after: $after) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
                 nodes {
                   id
                   type
@@ -233,6 +267,18 @@ class GitHubProjectsClient:
                           }
                         }
                       }
+                      ... on ProjectV2ItemFieldMilestoneValue {
+                        milestone {
+                          id
+                          title
+                        }
+                        field {
+                          ... on ProjectV2FieldCommon {
+                            id
+                            name
+                          }
+                        }
+                      }
                       ... on ProjectV2ItemFieldIterationValue {
                         title
                         field {
@@ -251,8 +297,142 @@ class GitHubProjectsClient:
         }
         """
         variables = {"id": project_id, "first": first}
+        if after:
+            variables["after"] = after
         result = self._execute_with_retry(query, variables)
-        return result["node"]["items"]["nodes"]
+        return result["node"]["items"]
+    
+    def execute_custom_query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a custom GraphQL query with validation"""
+        # Basic validation to prevent obvious injection attempts
+        dangerous_keywords = ['mutation', 'subscription', '__schema', '__type']
+        query_lower = query.lower()
+        
+        for keyword in dangerous_keywords:
+            if keyword in query_lower:
+                raise ValueError(f"Query contains forbidden keyword: {keyword}")
+        
+        # Execute the query
+        return self._execute_with_retry(query, variables)
+    
+    def get_project_items_advanced(
+        self, 
+        project_id: str, 
+        first: int = 50, 
+        after: str = None,
+        custom_fields: str = None,
+        custom_filters: str = None,
+        custom_variables: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Get project items with custom GraphQL modifiers"""
+        # Enforce GitHub API pagination limit
+        if first > 100:
+            first = 100
+        elif first < 1:
+            first = 1
+        
+        # Default field selection (minimal for efficiency)
+        default_fields = """
+        id
+        type
+        createdAt
+        updatedAt
+        isArchived
+        content {
+          ... on Issue {
+            id
+            title
+            number
+            url
+            issueState: state
+          }
+        }
+        fieldValues(first: 10) {
+          nodes {
+            ... on ProjectV2ItemFieldMilestoneValue {
+              milestone {
+                id
+                title
+              }
+              field {
+                ... on ProjectV2FieldCommon {
+                  id
+                  name
+                }
+              }
+            }
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name
+              field {
+                ... on ProjectV2FieldCommon {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        }
+        """
+        
+        # Use custom fields if provided, otherwise use defaults
+        fields = custom_fields if custom_fields else default_fields
+        
+        # Build the query with optional filters
+        query_parts = [
+            f"query GetProjectItemsAdvanced($id: ID!, $first: Int!, $after: String",
+        ]
+        
+        # Add custom variable declarations
+        if custom_variables:
+            for var_name, var_value in custom_variables.items():
+                var_type = "String" if isinstance(var_value, str) else "Int" if isinstance(var_value, int) else "Boolean"
+                query_parts[0] += f", ${var_name}: {var_type}"
+        
+        query_parts[0] += ") {"
+        
+        query_parts.extend([
+            "  node(id: $id) {",
+            "    ... on ProjectV2 {",
+        ])
+        
+        # Add custom filters if provided
+        if custom_filters:
+            query_parts.append(f"      items(first: $first, after: $after, {custom_filters}) {{")
+        else:
+            query_parts.append("      items(first: $first, after: $after) {")
+        
+        query_parts.extend([
+            "        pageInfo {",
+            "          hasNextPage",
+            "          endCursor",
+            "        }",
+            "        nodes {",
+            f"          {fields}",
+            "        }",
+            "      }",
+            "    }",
+            "  }",
+            "}"
+        ])
+        
+        query = "\n".join(query_parts)
+        
+        # Build variables
+        variables = {"id": project_id, "first": first}
+        if after:
+            variables["after"] = after
+        if custom_variables:
+            variables.update(custom_variables)
+        
+        # Execute with validation
+        try:
+            result = self.execute_custom_query(query, variables)
+            return result["node"]["items"]
+        except Exception as e:
+            # Fallback to basic query if custom query fails
+            if custom_fields or custom_filters:
+                return self.get_project_items(project_id, first, after)
+            raise e
     
     def get_project_fields(self, project_id: str) -> List[Dict[str, Any]]:
         """Get fields in a project"""

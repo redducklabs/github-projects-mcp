@@ -145,7 +145,23 @@ class TestLiveIntegration:
             # Import MCP server
             from github_projects_mcp.server import mcp
             
-            # Test 1: Organization Projects
+            # Test 1: List Accessible Projects (Discovery)
+            test_stats['total_tests'] += 1
+            try:
+                result = await mcp.call_tool('list_accessible_projects', {
+                    'first': 20
+                })
+                accessible_projects = result[1]['result']
+                test_stats['accessible_projects_count'] = len(accessible_projects)
+                test_stats['passed_tests'] += 1
+                test_stats['verified_tools'].append('list_accessible_projects')
+                print(f"✓ Found {len(accessible_projects)} accessible projects")
+            except Exception as e:
+                test_stats['failed_tests'] += 1
+                test_stats['list_accessible_projects_error'] = str(e)
+                print(f"✗ Failed to list accessible projects: {e}")
+            
+            # Test 2: Organization Projects
             test_stats['total_tests'] += 1
             try:
                 result = await mcp.call_tool('get_organization_projects', {

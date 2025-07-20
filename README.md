@@ -143,34 +143,60 @@ The GitHub Projects MCP Server can be easily integrated with Claude Code to give
 
 For development or if you want to run the latest version from source:
 
-1. **Clone and install from source:**
+1. **Create and set up virtual environment (Recommended):**
    ```bash
    git clone https://github.com/redducklabs/github-projects-mcp.git
    cd github-projects-mcp
+   
+   # Create virtual environment
+   python -m venv venv
+   
+   # Activate virtual environment
+   # On Windows:
+   ./venv/Scripts/activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   ```
+
+2. **Install dependencies and package:**
+   ```bash
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Install package in development mode
    pip install -e .
    ```
 
-2. **Verify installation:**
+3. **Verify installation:**
    ```bash
    python verify_setup.py
    ```
 
-3. **Add to Claude Code using full Python path:**
+4. **Add to Claude Code (Recommended approach):**
    ```bash
-   # Option 1: Use the installed module
-   claude mcp add github-projects python -m github_projects_mcp.server -e GITHUB_TOKEN=your_token_here
+   # Using virtual environment Python with direct script path
+   claude mcp add github-projects ./venv/Scripts/python github_projects_mcp/server.py -e GITHUB_TOKEN=your_token_here -e PYTHONPATH=/full/path/to/github-projects-mcp
    
-   # Option 2: Use direct script path (replace with your actual path)
-   claude mcp add github-projects python /path/to/github-projects-mcp/github_projects_mcp/server.py -e GITHUB_TOKEN=your_token_here
+   # On macOS/Linux, use:
+   # claude mcp add github-projects ./venv/bin/python github_projects_mcp/server.py -e GITHUB_TOKEN=your_token_here -e PYTHONPATH=/full/path/to/github-projects-mcp
    ```
 
-4. **Alternative: Configure with absolute path in JSON:**
+5. **Alternative approaches:**
+   ```bash
+   # Option A: System Python with script path (if no virtual env)
+   claude mcp add github-projects python github_projects_mcp/server.py -e GITHUB_TOKEN=your_token_here -e PYTHONPATH=/full/path/to/github-projects-mcp
+   
+   # Option B: Module approach (Note: claude mcp doesn't support -m flag)
+   # This won't work: claude mcp add github-projects python -m github_projects_mcp.server
+   ```
+
+6. **Manual JSON configuration:**
    ```json
    {
      "mcpServers": {
        "github-projects": {
-         "command": "python",
-         "args": ["/full/path/to/github-projects-mcp/github_projects_mcp/server.py"],
+         "command": "./venv/Scripts/python",
+         "args": ["github_projects_mcp/server.py"],
          "env": {
            "GITHUB_TOKEN": "your_github_token_here",
            "PYTHONPATH": "/full/path/to/github-projects-mcp"
@@ -180,15 +206,22 @@ For development or if you want to run the latest version from source:
    }
    ```
 
-5. **For development with hot reload:**
+7. **For development with hot reload:**
    ```bash
-   # Set up development environment
-   pip install -e .
+   # Install development dependencies
    pip install -r requirements-dev.txt
    
-   # Add to Claude Code with development settings
-   claude mcp add github-projects-dev python -m github_projects_mcp.server -e GITHUB_TOKEN=your_token -e LOG_LEVEL=DEBUG
+   # Add to Claude Code with debug logging
+   claude mcp add github-projects-dev ./venv/Scripts/python github_projects_mcp/server.py -e GITHUB_TOKEN=your_token -e LOG_LEVEL=DEBUG -e PYTHONPATH=/full/path/to/github-projects-mcp
    ```
+
+### Important Notes for Source Installation:
+
+- **Virtual Environment**: Highly recommended to avoid dependency conflicts
+- **PYTHONPATH**: Required when using direct script path to ensure module imports work
+- **Claude MCP Limitations**: The `python -m module` syntax is not supported by `claude mcp add`
+- **Path Requirements**: Use relative paths like `./venv/Scripts/python` for portability
+- **Dependencies**: Must install both runtime (`requirements.txt`) and the package itself (`pip install -e .`)
 
 ### Manual Configuration
 
@@ -280,14 +313,39 @@ In Claude Code, you can check if the server is working:
 # Restart Claude Code after adding the server
 ```
 
+**GitHub Token Issues:**
+- **Classic vs Fine-grained tokens**: For organization projects, you need a **Fine-grained Personal Access Token** (not Classic)
+- **Required scopes**: `Projects: Read/Write` (for fine-grained) or `project` + `read:project` (for classic)
+- **Organization access**: Ensure the token has access to your organization
+- **Generate fine-grained token**: Go to https://github.com/settings/tokens?type=beta
+
+**Source Installation Issues:**
+```bash
+# ModuleNotFoundError when starting server
+# Solution: Use virtual environment and install dependencies
+python -m venv venv
+./venv/Scripts/activate  # Windows
+pip install -r requirements.txt
+pip install -e .
+
+# Server fails with import errors
+# Solution: Add PYTHONPATH environment variable
+claude mcp add github-projects ./venv/Scripts/python github_projects_mcp/server.py -e GITHUB_TOKEN=token -e PYTHONPATH=/full/path/to/project
+
+# Claude MCP add fails with "-m" option
+# This won't work: claude mcp add server python -m module.server
+# Use direct script path instead: claude mcp add server python module/server.py
+```
+
 **Permission errors:**
-- Ensure your GitHub token has `project` and `read:project` scopes
-- For organization projects, you may need additional repository permissions
+- For organization projects, use **Fine-grained Personal Access Token** with organization resource access
+- Ensure you're a member of the organization with appropriate project permissions
 
 **Connection issues:**
 - Check your internet connection
-- Verify the GitHub token is valid and not expired
-- Try different transport modes if stdio isn't working
+- Verify the GitHub token is valid and not expired  
+- Test token with: `gh auth status` or `curl -H "Authorization: token YOUR_TOKEN" https://api.github.com/user`
+- For Windows: Unicode console issues may appear but don't affect functionality
 
 ### Example Usage with MCP Client
 
@@ -375,7 +433,7 @@ mypy github_projects_mcp/
 
 ## License
 
-MIT License - see LICENSE file for details.
+GNU General Public License v3.0 - see LICENSE file for details.
 
 ## Troubleshooting
 
