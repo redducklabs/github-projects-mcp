@@ -7,23 +7,22 @@ name = "github-projects-mcp"
 version = "0.1.0"
 description = "MCP Server for GitHub Projects management"
 readme = "README.md"
-requires-python = ">=3.8"
-license = {text = "MIT"}
+requires-python = ">=3.10"
+license = {text = "Gnu General Public License v3.0"}
 authors = [
-    {name = "GitHub Projects MCP", email = "noreply@example.com"}
+    {name = "Red Duck Labs, LLC", email = "contact@redducklabs.com"}
 ]
 keywords = ["mcp", "github", "projects", "graphql"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "mcp[cli]>=1.12.0",
@@ -46,9 +45,9 @@ dev = [
 github-projects-mcp = "github_projects_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/github-projects-mcp"
-Repository = "https://github.com/yourusername/github-projects-mcp"
-Issues = "https://github.com/yourusername/github-projects-mcp/issues"
+Homepage = "https://github.com/redducklabs/github-projects-mcp"
+Repository = "https://github.com/redducklabs/github-projects-mcp"
+Issues = "https://github.com/redducklabs/github-projects-mcp/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -56,14 +55,14 @@ include = ["github_projects_mcp*"]
 
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
 line_length = 120
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
