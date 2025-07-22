@@ -1,0 +1,134 @@
+name: Build DXT Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for the DXT package'
+        required: false
+        default: 'latest'
+        type: string
+      attach_to_release:
+        description: 'Attach DXT to latest release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write  # Required for attaching to releases
+
+jobs:
+  build-dxt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js for DXT CLI
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install DXT CLI
+      run: npm install -g @anthropic-ai/dxt
+    
+    - name: Determine version
+      id: version
+      run: |
+        if [ "${{ github.event.inputs.version }}" = "latest" ]; then
+          # Get latest git tag, fallback to commit SHA
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "dev-$(git rev-parse --short HEAD)")
+        else
+          VERSION="${{ github.event.inputs.version }}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Using version: $VERSION"
+    
+    - name: Create DXT manifest
+      run: |
+        cat > manifest.json << 'EOF'
+        {
+          "dxt_version": "0.1.1",
+          "name": "github-projects-mcp",
+          "version": "${{ steps.version.outputs.version }}",
+          "description": "A Model Context Protocol server for GitHub Projects",
+          "long_description": "This package provides a Model Context Protocol (MCP) server for managing GitHub Projects, allowing users to interact with GitHub Projects through a standardized API.",
+          "author": {
+            "name": "Red Duck Labs, LLC",
+            "email": "contact@redducklabs.com",
+            "url": "https://github.com/redducklabs"
+          },
+          "server": {
+            "type": "python",
+            "entry_point": "github_projects_mcp/server.py",
+            "mcp_config": {
+              "command": "python",
+              "args": ["-m", "github_projects_mcp.server"],
+              "env": {
+                "GITHUB_TOKEN": "${user_config.GITHUB_TOKEN}",
+                "API_MAX_RETRIES": "${user_config.API_MAX_RETRIES}",
+                "API_RETRY_DELAY": "${user_config.API_RETRY_DELAY}"
+              }
+            }
+          },
+          "user_config": {
+            "GITHUB_TOKEN": {
+              "title": "GitHub Token",
+              "type": "string",
+              "description": "GitHub Personal Access Token with project permissions",
+              "sensitive": true,
+              "required": true
+            },
+            "API_MAX_RETRIES": {
+              "title": "Max Retries",
+              "type": "string",
+              "description": "Maximum retries for rate-limited requests",
+              "default": "3"
+            },
+            "API_RETRY_DELAY": {
+              "title": "Retry Delay",
+              "type": "string",
+              "description": "Delay in seconds between retries", 
+              "default": "60"
+            }
+          }
+        }
+        EOF
+    
+    - name: Build DXT package
+      run: dxt pack
+    
+    - name: List created DXT files
+      run: ls -la *.dxt
+    
+    - name: Upload DXT package
+      uses: actions/upload-artifact@v4
+      with:
+        name: dxt-package-${{ steps.version.outputs.version }}
+        path: "*.dxt"
+        retention-days: 30
+    
+    - name: Attach DXT to latest release
+      if: github.event.inputs.attach_to_release == 'true'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        files: "*.dxt"
+        make_latest: false
+    
+    - name: Summary
+      run: |
+        echo "## DXT Package Built Successfully! 🎉" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Package Name:** github-projects-mcp@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Files Created:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        ls -la *.dxt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event.inputs.attach_to_release }}" = "true" ]; then
+          echo "✅ **DXT package attached to release ${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "📦 **DXT package available as workflow artifact**" >> $GITHUB_STEP_SUMMARY
+        fi
