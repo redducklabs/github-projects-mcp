@@ -1,5 +1,9 @@
 # GitHub Projects MCP Server
 
+[![GitHub Release](https://img.shields.io/github/v/release/redducklabs/github-projects-mcp?style=for-the-badge&color=blue)](https://github.com/redducklabs/github-projects-mcp/releases)
+[![Download DXT](https://img.shields.io/badge/Download-DXT%20Package-purple?style=for-the-badge&logo=download)](https://github.com/redducklabs/github-projects-mcp/releases/latest/download/github-projects-mcp.dxt)
+[![PyPI Version](https://img.shields.io/pypi/v/github-projects-mcp?style=for-the-badge&color=green)](https://pypi.org/project/github-projects-mcp/)
+
 A Model Context Protocol (MCP) server that provides tools for interacting with GitHub Projects using GraphQL. This server exposes GitHub Projects functionality through standardized MCP tools that can be used by LLMs and other MCP clients.
 
 ## Features

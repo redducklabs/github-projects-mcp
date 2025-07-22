@@ -1,0 +1,46 @@
+{
+  "dxt_version": "0.1.1",
+  "name": "github-projects-mcp",
+  "version": "1.0.0",
+  "description": "A Model Context Protocol server for GitHub Projects",
+  "long_description": "This package provides a Model Context Protocol (MCP) server for managing GitHub Projects, allowing users to interact with GitHub Projects through a standardized API.",
+  "author": {
+    "name": "Red Duck Labs, LLC",
+    "email": "contact@redducklabs.com",
+    "url": "https://github.com/redducklabs"
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "github_projects_mcp/server.py",
+    "mcp_config": {
+      "command": "python",
+      "args": ["-m", "github_projects_mcp.server"],
+      "env": {
+        "GITHUB_TOKEN": "${user_config.GITHUB_TOKEN}",
+        "API_MAX_RETRIES": "${user_config.API_MAX_RETRIES}",
+        "API_RETRY_DELAY": "${user_config.API_RETRY_DELAY}"
+      }
+    }
+  },
+  "user_config": {
+    "GITHUB_TOKEN": {
+      "title": "GitHub Token",
+      "type": "string",
+      "description": "GitHub Personal Access Token with project permissions",
+      "sensitive": true,
+      "required": true
+    },
+    "API_MAX_RETRIES": {
+      "title": "Max Retries",
+      "type": "string",
+      "description": "Maximum retries for rate-limited requests",
+      "default": "3"
+    },
+    "API_RETRY_DELAY": {
+      "title": "Retry Delay",
+      "type": "string",
+      "description": "Delay in seconds between retries", 
+      "default": "60"
+    }
+  }
+}
